@@ -3,14 +3,13 @@ import os
 import extract_msg
 import re
 
-input_folder = r"path\to\msg\files"
-output_folder = r"path\to\output\images"
+input_folder = r"/home/jonathan/Downloads/2025"
+output_folder = r"/home/jonathan/Downloads/2025_extracted_images"
+
 
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
-
-import re
-
+    
 for file_name in os.listdir(input_folder):
     if file_name.lower().endswith(".msg"):
         match = re.search(r"\\((\\d+)\\)\\.msg$", file_name)
