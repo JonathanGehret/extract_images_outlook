@@ -19,16 +19,27 @@ ANIMAL_CODES = {
 
 # Read Excel
 sheet = pd.read_excel(EXCEL_PATH)
+sheet.columns = sheet.columns.str.strip()  # Strip all column names
 
 # Track duplicate names for numbering
 name_counts = defaultdict(int)
 
 for idx, row in sheet.iterrows():
-    nr = row["Nr."]
-    date = row["Datum"]  # Format: dd.mm.yyyy
-    # Convert date to yyyy.mm.dd
-    day, month, year = str(date).split(".")
-    date_str = f"{year}.{month}.{day}"
+    nr = row["Nr."]  # Now always use stripped column name
+    date = row["Datum"]
+    # Robust date handling
+    try:
+        # If it's a pandas Timestamp or datetime object
+        date_str = pd.to_datetime(date).strftime("%Y.%m.%d")
+    except Exception:
+        # If it's a string, try to split
+        parts = str(date).split(".")
+        if len(parts) == 3:
+            day, month, year = parts
+            date_str = f"{year}.{month}.{day}"
+        else:
+            print(f"Warning: Unrecognized date format for row {idx}: {date}")
+            date_str = str(date)
 
     # Get animal names/codes
     animals = []
