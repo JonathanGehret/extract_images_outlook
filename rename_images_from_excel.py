@@ -3,7 +3,7 @@ import pandas as pd
 from collections import defaultdict
 
 # --- USER CONFIGURATION ---
-EXCEL_PATH = "path/to/your/excel.xlsx"  # Set to your Excel file path
+EXCEL_PATH = "/home/jonathan/development/extract_images_outlook/Fotofallendaten_2022.xlsx"  # Set to your Excel file path
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"  # Folder with extracted images
 CAMERA_NUMBER = "FP1"  # Set camera number manually (e.g., FP1, FP2, etc.)
 
