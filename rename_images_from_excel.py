@@ -14,6 +14,8 @@ ANIMAL_CODES = {
     "Rabenkrähe": "RK",
     "Fuchs": "Fuchs",
     "Gams": "Gams",
+    "Luisa": "Luisa",
+    "Generl": "Generl"
     # Add more as needed
 }
 
