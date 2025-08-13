@@ -130,6 +130,11 @@ dmypy.json
 
 # Project specific
 *.msg
+2025_extracted_images/
+*.jpeg
+*.jpg
+*.xlsx
+*.xls
 extracted_images/
 output/
 input/
