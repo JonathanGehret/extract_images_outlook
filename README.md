@@ -59,32 +59,76 @@ input_folder = r"/home/user/email_files"
 output_folder = r"/home/user/extracted_attachments"
 ```
 
+
 ## File Structure
 
 ```
 extract_images_outlook/
-├── extract_img_email.py    # Main script
-├── requirements.txt        # Python dependencies
-├── README.md              # This file
-└── .gitignore            # Git ignore rules
+├── extract_img_email.py         # Extracts images from .msg files
+├── rename_images_from_excel.py  # Renames images based on Excel sheet
+├── requirements.txt             # Python dependencies
+├── README.md                    # This file
+└── .gitignore                   # Git ignore rules
+```
+
+## Image Extraction Script
+
+See above for usage of `extract_img_email.py`.
+
+## Image Renaming Script
+
+`rename_images_from_excel.py` renames extracted images according to information in an Excel table.
+
+### Usage
+
+1. Place your Excel file (e.g., `data.xlsx`) in a known location.
+2. Edit the script to set:
+   - `EXCEL_PATH` to your Excel file path
+   - `IMAGES_FOLDER` to your extracted images folder
+   - `CAMERA_NUMBER` to the correct camera (e.g., FP1, FP2)
+3. Run the script:
+   ```bash
+   python3 rename_images_from_excel.py
+   ```
+
+The script will rename images in the format:
+`yyyy.mm.dd-FPX-YYYYY Z.jpeg`
+where:
+- Date is taken from the Excel sheet and reformatted
+- FPX is the camera number you set
+- YYYYY is the animal name or code (customizable in the script)
+- Z is a number if there are multiple images with the same name
+
+### Requirements
+
+- pandas
+- openpyxl
+
+Install all dependencies with:
+```bash
+pip3 install -r requirements.txt
 ```
 
 ## Notes
 
-- The script processes all files with `.msg` extension (case-insensitive)
+- The extraction script processes all files with `.msg` extension (case-insensitive)
 - All attachment types are extracted, not just images
 - Existing files in the output directory may be overwritten
 - The script creates the output directory automatically if it doesn't exist
+- The renaming script expects images to be named as extracted by the first script
 
 ## Troubleshooting
 
 - Ensure you have the correct permissions to read the input files and write to the output directory
 - Make sure the `.msg` files are not corrupted or password-protected
 - Check that the file paths use the correct format for your operating system
+- For the renaming script, ensure your Excel file columns match the expected names
 
 ## Dependencies
 
 - [extract-msg](https://pypi.org/project/extract-msg/): Library for extracting data from Microsoft Outlook message files
+- [pandas](https://pandas.pydata.org/): Data analysis library
+- [openpyxl](https://openpyxl.readthedocs.io/): Excel file reader
 
 ## License
 
