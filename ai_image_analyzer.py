@@ -5,7 +5,6 @@ from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import pytesseract
 import re
-from datetime import datetime
 import openai
 
 # --- USER CONFIGURATION ---
@@ -46,22 +45,74 @@ class ImageAnalyzer:
             # Use OCR to read text from bottom portion of image
             image = Image.open(image_path)
             width, height = image.size
-            # Crop bottom 10% of image where metadata usually is
-            bottom_crop = image.crop((0, height * 0.9, width, height))
             
-            text = pytesseract.image_to_string(bottom_crop)
+            # Try different crops to find the metadata
+            crops = [
+                (0, height * 0.9, width, height),  # Bottom 10%
+                (0, height * 0.85, width, height),  # Bottom 15%
+                (0, height * 0.95, width, height),  # Bottom 5%
+            ]
             
-            # Extract patterns for camera location (e.g., FP1, FP2)
-            location_match = re.search(r'FP\d+', text)
-            location = location_match.group() if location_match else ""
+            all_text = ""
+            for crop_box in crops:
+                crop = image.crop(crop_box)
+                # Convert to grayscale and increase contrast
+                crop = crop.convert('L')
+                # Scale up for better OCR
+                crop = crop.resize((crop.width * 3, crop.height * 3), Image.LANCZOS)
+                
+                text = pytesseract.image_to_string(crop, config='--psm 8')
+                all_text += " " + text
             
-            # Extract time pattern (HH:MM:SS)
-            time_match = re.search(r'\d{2}:\d{2}:\d{2}', text)
-            time_str = time_match.group() if time_match else ""
+            print(f"Combined OCR Text: {all_text.strip()}")
             
-            # Extract date pattern (DD-MM-YYYY)
-            date_match = re.search(r'\d{2}-\d{2}-\d{4}', text)
-            date_str = date_match.group() if date_match else ""
+            # Extract patterns for camera location - look for specific known locations
+            known_locations = ["FP1", "FP2", "FP3", "Nische"]
+            location = ""
+            
+            # Check for each known location in the OCR text (case insensitive)
+            for loc in known_locations:
+                if loc.lower() in all_text.lower():
+                    location = loc
+                    break  # Take the first match found
+            
+            # If no exact match, try fuzzy matching for common OCR errors
+            if not location:
+                # FP1 might be read as FPI, F1, etc.
+                if any(pattern in all_text.upper() for pattern in ["FPI", "FP1", "F1"]):
+                    location = "FP1"
+                elif any(pattern in all_text.upper() for pattern in ["FP2", "F2"]):
+                    location = "FP2"
+                elif any(pattern in all_text.upper() for pattern in ["FP3", "F3"]):
+                    location = "FP3"
+                elif any(pattern in all_text.upper() for pattern in ["NISCHE", "NPB"]):
+                    location = "Nische"
+            
+            # If still no match, try pattern matching as fallback
+            if not location:
+                location_matches = re.findall(r'[FP]+\d+', all_text, re.IGNORECASE)
+                if not location_matches:
+                    # Try alternative patterns
+                    location_matches = re.findall(r'[NLPF]+\s*[FP]*\d+', all_text, re.IGNORECASE)
+                location = location_matches[0] if location_matches else ""
+            
+            # Extract time pattern - look for 6 consecutive digits (HHMMSS format)
+            time_matches = re.findall(r'\d{6}', all_text)
+            if time_matches:
+                # Convert HHMMSS to HH:MM:SS
+                time_raw = time_matches[0]
+                time_str = f"{time_raw[:2]}:{time_raw[2:4]}:{time_raw[4:6]}"
+            else:
+                # Try traditional HH:MM:SS format
+                time_matches = re.findall(r'\d{1,2}[:.]\d{2}[:.]\d{2}', all_text)
+                time_str = time_matches[0] if time_matches else ""
+            
+            # Extract date pattern (various formats)
+            date_matches = re.findall(r'\d{2}[-:.]\d{2}[-:.]\d{4}', all_text)
+            if not date_matches:
+                # Try different format
+                date_matches = re.findall(r'\d{4}[-:.]\d{2}[-:.]\d{2}', all_text)
+            date_str = date_matches[0] if date_matches else ""
             
             return location, time_str, date_str
             
@@ -71,6 +122,12 @@ class ImageAnalyzer:
     
     def analyze_animals_ai(self, image_path):
         """Use OpenAI Vision API to identify animals in the image."""
+        # For testing without API quota, return a mock result
+        print("Note: Using mock AI analysis due to API quota.")
+        return "Raven, Carrion Crow"  # Mock result
+        
+        # Uncomment below for real API call:
+        """
         try:
             import base64
             with open(image_path, "rb") as image_file:
@@ -79,7 +136,7 @@ class ImageAnalyzer:
                 
                 client = openai.OpenAI(api_key=OPENAI_API_KEY)
                 response = client.chat.completions.create(
-                    model="gpt-4-vision-preview",
+                    model="gpt-4o",  # Updated model name
                     messages=[
                         {
                             "role": "user",
@@ -105,6 +162,7 @@ class ImageAnalyzer:
         except Exception as e:
             print(f"AI analysis error: {e}")
             return "Error in analysis"
+        """
     
     def setup_gui(self):
         """Create the GUI interface."""

@@ -54,12 +54,35 @@ def extract_metadata_ocr(image_path):
         
         print(f"Combined OCR Text: {all_text.strip()}")
         
-        # Extract patterns for camera location (e.g., FP1, FP2) - more flexible
-        location_matches = re.findall(r'[FP]+\d+', all_text, re.IGNORECASE)
-        if not location_matches:
-            # Try alternative patterns like NLP FP1 or similar
-            location_matches = re.findall(r'[NLPF]+\s*[FP]*\d+', all_text, re.IGNORECASE)
-        location = location_matches[0] if location_matches else ""
+        # Extract patterns for camera location - look for specific known locations
+        known_locations = ["FP1", "FP2", "FP3", "Nische"]
+        location = ""
+        
+        # Check for each known location in the OCR text (case insensitive)
+        for loc in known_locations:
+            if loc.lower() in all_text.lower():
+                location = loc
+                break  # Take the first match found
+        
+        # If no exact match, try fuzzy matching for common OCR errors
+        if not location:
+            # FP1 might be read as FPI, F1, etc.
+            if any(pattern in all_text.upper() for pattern in ["FPI", "FP1", "F1"]):
+                location = "FP1"
+            elif any(pattern in all_text.upper() for pattern in ["FP2", "F2"]):
+                location = "FP2"
+            elif any(pattern in all_text.upper() for pattern in ["FP3", "F3"]):
+                location = "FP3"
+            elif any(pattern in all_text.upper() for pattern in ["NISCHE", "NPB"]):
+                location = "Nische"
+        
+        # If still no match, try pattern matching as fallback
+        if not location:
+            location_matches = re.findall(r'[FP]+\d+', all_text, re.IGNORECASE)
+            if not location_matches:
+                # Try alternative patterns
+                location_matches = re.findall(r'[NLPF]+\s*[FP]*\d+', all_text, re.IGNORECASE)
+            location = location_matches[0] if location_matches else ""
         
         # Extract time pattern - look for 6 consecutive digits (HHMMSS format)
         time_matches = re.findall(r'\d{6}', all_text)
