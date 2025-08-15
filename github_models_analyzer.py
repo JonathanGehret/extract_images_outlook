@@ -239,6 +239,25 @@ DATE: [date in DD-MM-YYYY]"""
         animals_entry.pack(anchor=tk.W)
         self.animals_text = animals_entry
         
+        # Additional fields for Excel columns
+        ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10,0))
+        self.aktivitat_var = tk.StringVar()
+        ttk.Entry(right_frame, textvariable=self.aktivitat_var, width=30).pack(anchor=tk.W)
+        
+        ttk.Label(right_frame, text="Interaktion:").pack(anchor=tk.W)
+        self.interaktion_var = tk.StringVar()
+        ttk.Entry(right_frame, textvariable=self.interaktion_var, width=30).pack(anchor=tk.W)
+        
+        ttk.Label(right_frame, text="Sonstiges:").pack(anchor=tk.W)
+        self.sonstiges_text = tk.Text(right_frame, height=2, width=40)
+        self.sonstiges_text.pack(anchor=tk.W)
+        
+        # Testing mode checkbox
+        self.dummy_mode_var = tk.BooleanVar(value=True)  # Default to dummy mode
+        dummy_checkbox = ttk.Checkbutton(right_frame, text="Use Dummy Data (Testing Mode)", 
+                                       variable=self.dummy_mode_var)
+        dummy_checkbox.pack(anchor=tk.W, pady=(10,0))
+        
         # Control buttons
         button_frame = ttk.Frame(right_frame)
         button_frame.pack(pady=20)
@@ -288,9 +307,59 @@ DATE: [date in DD-MM-YYYY]"""
         self.time_var.set("")
         self.date_var.set("")
         self.animals_text.delete(1.0, tk.END)
+        self.aktivitat_var.set("")
+        self.interaktion_var.set("")
+        self.sonstiges_text.delete(1.0, tk.END)
     
     def analyze_current_image(self):
-        """Analyze the current image with GitHub Models."""
+        """Analyze the current image with GitHub Models or use dummy data."""
+        if self.dummy_mode_var.get():
+            # Use dummy data for testing
+            self.use_dummy_data()
+        else:
+            # Use real AI analysis
+            self.analyze_with_ai()
+            
+    def use_dummy_data(self):
+        """Fill fields with realistic dummy data for testing."""
+        import random
+        
+        # Dummy locations
+        locations = ["FP1", "FP2", "FP3", "Nische"]
+        
+        # Dummy animals
+        animals_options = [
+            "1 Raven", "2 Ravens", "1 Golden Eagle", "1 Bearded Vulture", 
+            "3 Chamois", "1 Fox", "2 Ibex", "1 Marmot", "None detected"
+        ]
+        
+        # Dummy activities
+        activities = ["Feeding", "Resting", "Flying", "Walking", "Grooming", ""]
+        
+        # Dummy interactions
+        interactions = ["", "Aggressive", "Territorial", "Feeding together", "Parent-offspring"]
+        
+        # Dummy sonstiges
+        sonstiges_options = ["", "Clear weather", "Foggy", "Rain", "Snow visible", "Good visibility"]
+        
+        # Generate dummy data
+        self.location_var.set(random.choice(locations))
+        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:{random.randint(0,59):02d}")
+        self.date_var.set(f"{random.randint(1,31):02d}-{random.randint(7,8):02d}-2025")
+        
+        self.animals_text.delete(1.0, tk.END)
+        self.animals_text.insert(1.0, random.choice(animals_options))
+        
+        self.aktivitat_var.set(random.choice(activities))
+        self.interaktion_var.set(random.choice(interactions))
+        
+        self.sonstiges_text.delete(1.0, tk.END)
+        self.sonstiges_text.insert(1.0, random.choice(sonstiges_options))
+        
+        print("Filled with dummy data for testing")
+    
+    def analyze_with_ai(self):
+        """Analyze the current image with GitHub Models API."""
         image_file = self.image_files[self.current_image_index]
         image_path = os.path.join(IMAGES_FOLDER, image_file)
         
@@ -326,6 +395,9 @@ DATE: [date in DD-MM-YYYY]"""
         date = self.date_var.get()
         time = self.time_var.get()
         animals = self.animals_text.get(1.0, tk.END).strip()
+        aktivitat = self.aktivitat_var.get()
+        interaktion = self.interaktion_var.get()
+        sonstiges = self.sonstiges_text.get(1.0, tk.END).strip()
         
         # Prepare Excel row data according to your spreadsheet columns
         data = {
@@ -333,15 +405,16 @@ DATE: [date in DD-MM-YYYY]"""
             'Standort': location,  # Location (FP1/FP2/FP3/Nische)
             'Datum': date,  # Date
             'Uhrzeit': time,  # Time
-            'Aktivät': '',  # Activity column (empty for now)
+            'Aktivät': aktivitat,  # Activity column
             'Art 1': '',  # Species 1 (empty for now)
             'Anzahl': '',  # Count (empty for now)
             'Art 2': '',  # Species 2 (empty for now)
             'Anzahl.1': '',  # Count 2 (empty for now)
-            'Interaction': '',  # Interaction (empty for now)
-            'Sonstiges': '',  # Other (empty for now)
+            'Interaktion': interaktion,  # Interaction
+            'Sonstiges': sonstiges,  # Other
             'Konstruk': '',  # Construction (empty for now)
             'Unbestimmt': 'Bg' if 'Bearded Vulture' in animals else '',  # "Bg" for Bearded Vultures
+            'animals_detected': animals,  # Keep for reference
             'filename': image_file  # Keep filename for reference
         }
         
@@ -364,20 +437,61 @@ DATE: [date in DD-MM-YYYY]"""
         self.load_current_image()
     
     def save_results(self):
-        """Save results to Excel file with proper column mapping."""
-        if self.results:
-            df = pd.DataFrame(self.results)
-            df.to_excel(OUTPUT_EXCEL, index=False)
-            print(f"Results saved to {OUTPUT_EXCEL}")
-            print(f"Analyzed {len(self.results)} images")
-            print("Excel columns:")
-            print("- Nr: Image number from filename") 
-            print("- Standort: Location (FP1/FP2/FP3/Nische)")
-            print("- Datum: Date")
-            print("- Uhrzeit: Time")
-            print("- Unbestimmt: 'Bg' for Bearded Vultures")
-        else:
+        """Save results to Excel file with proper sheet mapping based on location."""
+        if not self.results:
             print("No results to save")
+            return
+            
+        # Group results by location (Standort)
+        location_groups = {}
+        for result in self.results:
+            location = result.get('Standort', 'Unknown')
+            if location not in location_groups:
+                location_groups[location] = []
+            location_groups[location].append(result)
+        
+        # Load existing Excel file or create new one
+        try:
+            # Load existing Excel file
+            with pd.ExcelFile(OUTPUT_EXCEL) as xls:
+                existing_sheets = xls.sheet_names
+            print(f"Found existing Excel file with sheets: {existing_sheets}")
+        except FileNotFoundError:
+            print("Excel file not found, will create new sheets")
+            existing_sheets = []
+        
+        # Save to appropriate sheets
+        with pd.ExcelWriter(OUTPUT_EXCEL, mode='a' if existing_sheets else 'w', 
+                           if_sheet_exists='overlay' if existing_sheets else None) as writer:
+            
+            for location, data_list in location_groups.items():
+                if location and location in ['FP1', 'FP2', 'FP3', 'Nische']:
+                    df = pd.DataFrame(data_list)
+                    
+                    # Try to load existing data from this sheet
+                    try:
+                        if location in existing_sheets:
+                            existing_df = pd.read_excel(OUTPUT_EXCEL, sheet_name=location)
+                            # Append new data to existing
+                            df = pd.concat([existing_df, df], ignore_index=True)
+                            print(f"Appending {len(data_list)} rows to existing {location} sheet")
+                        else:
+                            print(f"Creating new {location} sheet with {len(data_list)} rows")
+                    except Exception as e:
+                        print(f"Could not read existing {location} sheet: {e}")
+                    
+                    # Write to sheet named after location
+                    df.to_excel(writer, sheet_name=location, index=False)
+                    print(f"Saved {len(data_list)} images to {location} sheet")
+                else:
+                    print(f"Skipping unknown location: {location}")
+        
+        print(f"Results saved to {OUTPUT_EXCEL}")
+        print(f"Total analyzed: {len(self.results)} images")
+        print("New fields included:")
+        print("- Aktivät: Activity information")
+        print("- Interaktion: Interaction details") 
+        print("- Sonstiges: Additional notes")
     
     def run(self):
         """Start the GUI application."""
