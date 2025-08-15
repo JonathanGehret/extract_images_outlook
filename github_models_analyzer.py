@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+"""
+Kamerafallen Bild-Analyzer mit GitHub Models API
+================================================
+
+Ein GUI-Tool zur Analyse von Kamerafallen-Bildern mit KI-Unterstützung.
+Analysiert Bilder automatisch und speichert Ergebnisse in Excel-Dateien.
+
+Funktionen:
+- Automatische Bilderkennung von Tieren
+- Manuelle Datenbearbeitung
+- Export in strukturierte Excel-Arbeitsblätter
+- GitHub Models API Integration (GPT-4o/GPT-5)
+
+Autor: GitHub Copilot für Jonathan Gehret
+Datum: August 2025
+"""
+
 import os
 import pandas as pd
 import tkinter as tk
@@ -7,10 +25,10 @@ import base64
 import requests
 import re
 
-# --- USER CONFIGURATION ---
+# --- BENUTZER KONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
 OUTPUT_EXCEL = "/home/jonathan/development/extract_images_outlook/analyzed_images.xlsx"
-GITHUB_TOKEN = "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"  # Get from https://github.com/settings/tokens
+GITHUB_TOKEN = "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"  # Von https://github.com/settings/tokens
 START_FROM_IMAGE = 1
 
 # GitHub Models API endpoint
@@ -204,7 +222,7 @@ DATE: [date in DD-MM-YYYY]"""
     def setup_gui(self):
         """Create the GUI interface."""
         self.root = tk.Tk()
-        self.root.title("Camera Trap Image Analyzer - GitHub Models")
+        self.root.title("Kamerafallen Bild-Analyzer - GitHub Models")
         self.root.geometry("1200x800")
         
         # Create main frames
@@ -219,22 +237,22 @@ DATE: [date in DD-MM-YYYY]"""
         self.image_label.pack(pady=10)
         
         # Right side - Data entry form
-        ttk.Label(right_frame, text="Image Analysis", font=("Arial", 14)).pack()
+        ttk.Label(right_frame, text="Bildanalyse", font=("Arial", 14)).pack()
         
         # Form fields
-        ttk.Label(right_frame, text="Location:").pack(anchor=tk.W)
+        ttk.Label(right_frame, text="Standort:").pack(anchor=tk.W)
         self.location_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.location_var, width=30).pack(anchor=tk.W)
         
-        ttk.Label(right_frame, text="Time:").pack(anchor=tk.W)
+        ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W)
         self.time_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.time_var, width=30).pack(anchor=tk.W)
         
-        ttk.Label(right_frame, text="Date:").pack(anchor=tk.W)
+        ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W)
         self.date_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
         
-        ttk.Label(right_frame, text="Animals Detected:").pack(anchor=tk.W)
+        ttk.Label(right_frame, text="Erkannte Tiere:").pack(anchor=tk.W)
         animals_entry = tk.Text(right_frame, height=3, width=40)
         animals_entry.pack(anchor=tk.W)
         self.animals_text = animals_entry
@@ -254,7 +272,7 @@ DATE: [date in DD-MM-YYYY]"""
         
         # Testing mode checkbox
         self.dummy_mode_var = tk.BooleanVar(value=True)  # Default to dummy mode
-        dummy_checkbox = ttk.Checkbutton(right_frame, text="Use Dummy Data (Testing Mode)", 
+        dummy_checkbox = ttk.Checkbutton(right_frame, text="Testdaten verwenden (Testmodus)", 
                                        variable=self.dummy_mode_var)
         dummy_checkbox.pack(anchor=tk.W, pady=(10,0))
         
@@ -262,11 +280,11 @@ DATE: [date in DD-MM-YYYY]"""
         button_frame = ttk.Frame(right_frame)
         button_frame.pack(pady=20)
         
-        ttk.Button(button_frame, text="Analyze Current Image", 
+        ttk.Button(button_frame, text="Aktuelles Bild analysieren", 
                   command=self.analyze_current_image).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Confirm & Next", 
+        ttk.Button(button_frame, text="Bestätigen & Weiter", 
                   command=self.confirm_and_next).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Skip Image", 
+        ttk.Button(button_frame, text="Bild überspringen", 
                   command=self.skip_image).pack(side=tk.LEFT, padx=5)
         
         # Progress info
@@ -277,9 +295,9 @@ DATE: [date in DD-MM-YYYY]"""
         self.load_current_image()
     
     def load_current_image(self):
-        """Load and display the current image."""
+        """Lädt und zeigt das aktuelle Bild an."""
         if self.current_image_index >= len(self.image_files):
-            messagebox.showinfo("Complete", "All images have been processed!")
+            messagebox.showinfo("Fertig", "Alle Bilder wurden verarbeitet!")
             self.save_results()
             return
             
@@ -329,18 +347,18 @@ DATE: [date in DD-MM-YYYY]"""
         
         # Dummy animals
         animals_options = [
-            "1 Raven", "2 Ravens", "1 Golden Eagle", "1 Bearded Vulture", 
-            "3 Chamois", "1 Fox", "2 Ibex", "1 Marmot", "None detected"
+            "1 Rabe", "2 Raben", "1 Steinadler", "1 Bartgeier", 
+            "3 Gämse", "1 Fuchs", "2 Steinböcke", "1 Murmeltier", "Keine Tiere entdeckt"
         ]
         
         # Dummy activities
-        activities = ["Feeding", "Resting", "Flying", "Walking", "Grooming", ""]
+        activities = ["Fressen", "Ruhen", "Fliegen", "Laufen", "Putzen", ""]
         
         # Dummy interactions
-        interactions = ["", "Aggressive", "Territorial", "Feeding together", "Parent-offspring"]
+        interactions = ["", "Aggressiv", "Territorial", "Gemeinsam fressen", "Eltern-Nachkommen"]
         
         # Dummy sonstiges
-        sonstiges_options = ["", "Clear weather", "Foggy", "Rain", "Snow visible", "Good visibility"]
+        sonstiges_options = ["", "Klares Wetter", "Neblig", "Regen", "Schnee sichtbar", "Gute Sicht"]
         
         # Generate dummy data
         self.location_var.set(random.choice(locations))
@@ -356,7 +374,7 @@ DATE: [date in DD-MM-YYYY]"""
         self.sonstiges_text.delete(1.0, tk.END)
         self.sonstiges_text.insert(1.0, random.choice(sonstiges_options))
         
-        print("Filled with dummy data for testing")
+        print("Mit Testdaten gefüllt")
     
     def analyze_with_ai(self):
         """Analyze the current image with GitHub Models API."""
@@ -365,7 +383,7 @@ DATE: [date in DD-MM-YYYY]"""
         
         # Show analysis in progress
         self.animals_text.delete(1.0, tk.END)
-        self.animals_text.insert(1.0, "Analyzing with AI...")
+        self.animals_text.insert(1.0, "Analysiere mit KI...")
         self.root.update()
         
         # Analyze with GitHub Models
@@ -422,7 +440,7 @@ DATE: [date in DD-MM-YYYY]"""
         
         # Add to results
         self.results.append(data)
-        print(f"Saved data for image {image_number}: {location}, {date}, {time}")
+        print(f"Daten gespeichert für Bild {image_number}: {location}, {date}, {time}")
         
         # Immediately save this entry to Excel
         self.save_single_result(data)
@@ -444,7 +462,7 @@ DATE: [date in DD-MM-YYYY]"""
     def save_results(self):
         """Save results to Excel file with proper sheet mapping based on location."""
         if not self.results:
-            print("No results to save")
+            print("Keine Ergebnisse zu speichern")
             return
             
         # Group results by location (Standort)
@@ -467,9 +485,9 @@ DATE: [date in DD-MM-YYYY]"""
             # Load existing Excel file
             with pd.ExcelFile(OUTPUT_EXCEL) as xls:
                 existing_sheets = xls.sheet_names
-            print(f"Found existing Excel file with sheets: {existing_sheets}")
+            print(f"Bestehende Excel-Datei gefunden mit Arbeitsblättern: {existing_sheets}")
         except FileNotFoundError:
-            print("Excel file not found, will create new sheets")
+            print("Excel-Datei nicht gefunden, erstelle neue Arbeitsblätter")
             existing_sheets = []
         
         # Save to appropriate sheets
@@ -495,26 +513,26 @@ DATE: [date in DD-MM-YYYY]"""
                                 existing_df = existing_df.reindex(columns=expected_columns, fill_value='')
                                 # Append new data to existing
                                 combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-                                print(f"Appending {len(data_list)} rows to existing {location} sheet")
+                                print(f"Füge {len(data_list)} Zeilen zu bestehendem {location} Arbeitsblatt hinzu")
                             else:
                                 combined_df = new_df
-                                print(f"Creating new {location} sheet with {len(data_list)} rows")
+                                print(f"Erstelle neues {location} Arbeitsblatt mit {len(data_list)} Zeilen")
                         except Exception as e:
-                            print(f"Could not read existing {location} sheet: {e}")
+                            print(f"Konnte bestehendes {location} Arbeitsblatt nicht lesen: {e}")
                             combined_df = new_df
                         
                         # Write to sheet named after location
                         combined_df.to_excel(writer, sheet_name=location, index=False)
-                        print(f"✅ Saved {len(data_list)} images to {location} sheet")
+                        print(f"✅ {len(data_list)} Bilder in {location} Arbeitsblatt gespeichert")
                     else:
-                        print(f"❌ Skipping unknown location: {location}")
+                        print(f"❌ Überspringe unbekannten Standort: {location}")
                         
         except Exception as e:
-            print(f"Error saving to Excel: {e}")
+            print(f"Fehler beim Speichern in Excel: {e}")
             import traceback
             traceback.print_exc()
         
-        print(f"Results saved to {OUTPUT_EXCEL}")
+        print(f"Ergebnisse gespeichert in {OUTPUT_EXCEL}")
     
     def save_single_result(self, data):
         """Save a single result immediately to Excel file."""
@@ -543,27 +561,27 @@ DATE: [date in DD-MM-YYYY]"""
                 existing_df = existing_df.reindex(columns=expected_columns, fill_value='')
                 # Append new data to existing
                 combined_df = pd.concat([existing_df, new_row], ignore_index=True)
-                print(f"✅ Appending 1 row to existing {location} sheet (now {len(combined_df)} total rows)")
+                print(f"✅ Füge 1 Zeile zu bestehendem {location} Arbeitsblatt hinzu (jetzt {len(combined_df)} Zeilen insgesamt)")
             except Exception as e:
-                print(f"Could not read existing {location} sheet: {e}")
+                print(f"Konnte bestehendes {location} Arbeitsblatt nicht lesen: {e}")
                 combined_df = new_row
-                print(f"✅ Creating new entry in {location} sheet")
+                print(f"✅ Erstelle neuen Eintrag in {location} Arbeitsblatt")
             
             # Write to the specific sheet using ExcelWriter
             with pd.ExcelWriter(OUTPUT_EXCEL, mode='a', if_sheet_exists='replace') as writer:
                 combined_df.to_excel(writer, sheet_name=location, index=False)
             
-            print(f"📝 Immediately saved entry to {location} sheet in {OUTPUT_EXCEL}")
+            print(f"📝 Eintrag sofort in {location} Arbeitsblatt in {OUTPUT_EXCEL} gespeichert")
             
         except Exception as e:
-            print(f"❌ Error saving single result to Excel: {e}")
+            print(f"❌ Fehler beim Speichern des einzelnen Ergebnisses in Excel: {e}")
             import traceback
             traceback.print_exc()
-        print(f"Total analyzed: {len(self.results)} images")
-        print("New fields included:")
-        print("- Aktivät: Activity information")
-        print("- Interaktion: Interaction details") 
-        print("- Sonstiges: Additional notes")
+        print(f"Insgesamt analysiert: {len(self.results)} Bilder")
+        print("Neue Felder enthalten:")
+        print("- Aktivität: Aktivitätsinformationen")
+        print("- Interaktion: Interaktionsdetails") 
+        print("- Sonstiges: Zusätzliche Notizen")
     
     def run(self):
         """Start the GUI application."""
@@ -572,17 +590,17 @@ DATE: [date in DD-MM-YYYY]"""
 if __name__ == "__main__":
     # Check if GitHub token is set
     if GITHUB_TOKEN == "your-github-token-here":
-        print("Please set your GitHub token in the GITHUB_TOKEN variable.")
-        print("Get a token from: https://github.com/settings/tokens")
-        print("Make sure to enable 'Models' scope when creating the token.")
+        print("Bitte setzen Sie Ihr GitHub Token in der GITHUB_TOKEN Variable.")
+        print("Token erhalten von: https://github.com/settings/tokens")
+        print("Stellen Sie sicher, dass Sie die 'Models' Berechtigung aktivieren.")
         exit(1)
     
-    print("GitHub Models Image Analyzer")
+    print("GitHub Models Kamerafallen-Analyzer")
     print("=" * 40)
-    print("If you get a 401 error:")
-    print("1. Go to https://github.com/settings/tokens")
-    print("2. Create a new token with 'Models' scope enabled")
-    print("3. Update GITHUB_TOKEN in this script")
+    print("Bei 401-Fehler:")
+    print("1. Gehe zu https://github.com/settings/tokens")
+    print("2. Erstelle ein neues Token mit 'Models' Berechtigung")
+    print("3. Aktualisiere GITHUB_TOKEN in diesem Skript")
     print("=" * 40)
     
     analyzer = ImageAnalyzer()
