@@ -72,8 +72,13 @@ class ImageAnalyzer:
     def analyze_animals_ai(self, image_path):
         """Use OpenAI Vision API to identify animals in the image."""
         try:
+            import base64
             with open(image_path, "rb") as image_file:
-                response = openai.ChatCompletion.create(
+                image_data = image_file.read()
+                base64_image = base64.b64encode(image_data).decode('utf-8')
+                
+                client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                response = client.chat.completions.create(
                     model="gpt-4-vision-preview",
                     messages=[
                         {
@@ -86,7 +91,7 @@ class ImageAnalyzer:
                                 {
                                     "type": "image_url",
                                     "image_url": {
-                                        "url": f"data:image/jpeg;base64,{image_file.read().encode('base64').decode()}"
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
                                     }
                                 }
                             ]
