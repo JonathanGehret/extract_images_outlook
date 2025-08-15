@@ -24,6 +24,8 @@ from PIL import Image, ImageTk
 import base64
 import requests
 import re
+import shutil
+from collections import defaultdict
 
 # --- BENUTZER KONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
@@ -46,7 +48,7 @@ class ImageAnalyzer:
         self.image_files = self.get_image_files()
         self.results = []
         
-        # Create GUI
+        # Create GUI (this will initialize the root window)
         self.setup_gui()
         
     def get_image_files(self):
@@ -231,9 +233,12 @@ DATE: [date in DD.MM.YYYY]"""
         self.root.title("Kamerafallen Bild-Analyzer - GitHub Models")
         self.root.geometry("1200x800")
         
-        # Initialize Generl and Luisa tracking variables
+        # Initialize Generl and Luisa tracking variables after root window creation
         self.generl_var = tk.BooleanVar()
         self.luisa_var = tk.BooleanVar()
+        
+        # Initialize image number variable
+        self.image_number_var = tk.StringVar()
         
         # Create main frames
         left_frame = ttk.Frame(self.root, width=600)
@@ -262,11 +267,12 @@ DATE: [date in DD.MM.YYYY]"""
         self.date_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
         
-        # Generl and Luisa checkboxes
+        # Generl and Luisa checkboxes (above animal fields)
         special_frame = ttk.Frame(right_frame)
         special_frame.pack(anchor=tk.W, pady=(10,5))
         ttk.Label(special_frame, text="Spezielle Markierungen:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
         
+        # Generl and Luisa checkboxes
         checkboxes_frame = ttk.Frame(special_frame)
         checkboxes_frame.pack(anchor=tk.W, pady=5)
         
@@ -345,6 +351,11 @@ DATE: [date in DD.MM.YYYY]"""
         ttk.Button(button_frame, text="Bild überspringen", 
                   command=self.skip_image).pack(side=tk.LEFT, padx=5)
         
+        # Image number display
+        image_number_label = ttk.Label(right_frame, textvariable=self.image_number_var, 
+                                     font=("Arial", 12, "bold"), foreground="blue")
+        image_number_label.pack(pady=5)
+        
         # Progress info
         self.progress_var = tk.StringVar()
         ttk.Label(right_frame, textvariable=self.progress_var).pack(pady=10)
@@ -384,8 +395,12 @@ DATE: [date in DD.MM.YYYY]"""
         self.image_label.configure(image=photo)
         self.image_label.image = photo  # Keep a reference
         
-        # Update progress
-        progress = f"Image {self.current_image_index + 1} of {len(self.image_files)}: {image_file}"
+        # Update image number display
+        image_number = f"📸 Bild {self.current_image_index + 1} von {len(self.image_files)}"
+        self.image_number_var.set(image_number)
+        
+        # Update progress with filename
+        progress = f"Datei: {image_file}"
         self.progress_var.set(progress)
         
         # Clear form
@@ -577,10 +592,6 @@ DATE: [date in DD.MM.YYYY]"""
         # Get the current image filename
         image_file = self.image_files[self.current_image_index]
         
-        # Extract number from filename (e.g., "fotofallen_2025_123.jpg" -> 123)
-        number_match = re.search(r'fotofallen_2025_(\d+)', image_file)
-        image_number = number_match.group(1) if number_match else ""
-        
         # Get the analyzed data
         location = self.location_var.get()
         date = self.date_var.get()
@@ -596,13 +607,34 @@ DATE: [date in DD.MM.YYYY]"""
         species2 = self.species2_var.get().strip()
         count2 = self.count2_var.get().strip()
         
-        # Get Generl and Luisa values
+        # Get General and Luisa values
         generl_checked = self.generl_var.get()
         luisa_checked = self.luisa_var.get()
         
-        # Prepare Excel row data according to existing spreadsheet structure
+        # Validate required fields
+        if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
+            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)")
+            return
+            
+        if not date:
+            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein")
+            return
+        
+        # Get next sequential ID for this location
+        new_id = self.get_next_id_for_location(location)
+        
+        # Rename image file with new ID system
+        new_image_name = self.create_backup_and_rename_image(
+            image_file, location, date, species1, count1, species2, count2, new_id, generl_checked, luisa_checked
+        )
+        
+        if new_image_name is None:
+            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes. Eintrag wird trotzdem gespeichert.")
+            new_image_name = image_file
+        
+        # Prepare Excel row data with new sequential ID
         data = {
-            'Nr. ': image_number,  # Number from filename (note the space)
+            'Nr. ': new_id,  # Use sequential ID instead of original image number
             'Standort': location,  # Location (FP1/FP2/FP3/Nische)
             'Datum': date,  # Date
             'Uhrzeit': time,  # Time
@@ -620,12 +652,13 @@ DATE: [date in DD.MM.YYYY]"""
             'Luisa': 'X' if luisa_checked else '',  # Luisa column
             'Korrektur': '',  # Correction field (empty for now)
             'animals_detected': animals,  # Keep for reference
-            'filename': image_file  # Keep filename for reference
+            'filename': new_image_name,  # Use new filename
+            'original_filename': image_file  # Keep original for reference
         }
         
         # Add to results
         self.results.append(data)
-        print(f"Daten gespeichert für Bild {image_number}: {location}, {date}, {time}")
+        print(f"Daten gespeichert für Bild {new_id}: {location}, {date}, {time}")
         
         # Immediately save this entry to Excel
         self.save_single_result(data)
@@ -633,11 +666,35 @@ DATE: [date in DD.MM.YYYY]"""
         # Move to next image
         if self.current_image_index < len(self.image_files) - 1:
             self.current_image_index += 1
+            # Update the image list to reflect any renamed files
+            self.refresh_image_list()
             self.load_current_image()
         else:
             # Save results when done with all images
             self.save_results()
-            messagebox.showinfo("Complete", f"Analysis complete! Results saved to {OUTPUT_EXCEL}")
+            messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {OUTPUT_EXCEL}")
+    
+    def refresh_image_list(self):
+        """Refresh the image file list to account for renamed files."""
+        try:
+            # Get updated list of image files
+            all_files = os.listdir(IMAGES_FOLDER)
+            image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png')) 
+                          and not f.startswith('.') and 'backup' not in f.lower()]
+            image_files.sort()
+            
+            # Update the list but try to maintain current position if possible
+            old_current_file = self.image_files[self.current_image_index] if self.current_image_index < len(self.image_files) else None
+            self.image_files = image_files
+            
+            # Try to find the current file in the new list, otherwise keep index
+            if old_current_file and old_current_file in self.image_files:
+                self.current_image_index = self.image_files.index(old_current_file)
+            elif self.current_image_index >= len(self.image_files):
+                self.current_image_index = max(0, len(self.image_files) - 1)
+                
+        except Exception as e:
+            print(f"Fehler beim Aktualisieren der Bilderliste: {e}")
     
     def skip_image(self):
         """Skip current image without saving data."""
@@ -718,6 +775,117 @@ DATE: [date in DD.MM.YYYY]"""
             traceback.print_exc()
         
         print(f"Ergebnisse gespeichert in {OUTPUT_EXCEL}")
+    
+    def get_next_id_for_location(self, location):
+        """Get the next sequential ID number for a specific location."""
+        try:
+            # Read existing Excel file to find the highest ID for this location
+            df = pd.read_excel(OUTPUT_EXCEL, sheet_name=location)
+            if not df.empty and 'Nr. ' in df.columns:
+                # Get all numeric IDs, excluding any non-numeric values
+                numeric_ids = []
+                for id_val in df['Nr. ']:
+                    try:
+                        if pd.notna(id_val):
+                            numeric_ids.append(int(float(id_val)))
+                    except (ValueError, TypeError):
+                        continue
+                
+                if numeric_ids:
+                    return max(numeric_ids) + 1
+                else:
+                    return 1
+            else:
+                return 1
+        except Exception as e:
+            print(f"Fehler beim Ermitteln der nächsten ID für {location}: {e}")
+            return 1
+    
+    def create_backup_and_rename_image(self, image_file, location, date, species1, count1, species2, count2, new_id, generl_checked=False, luisa_checked=False):
+        """Create backup and rename image with location-based sequential numbering."""
+        try:
+            old_path = os.path.join(IMAGES_FOLDER, image_file)
+            if not os.path.exists(old_path):
+                print(f"⚠️ Bild nicht gefunden: {old_path}")
+                return None
+            
+            # Create backup directory if it doesn't exist
+            backup_dir = os.path.join(IMAGES_FOLDER, "backup_originals")
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Create backup copy with original name
+            backup_path = os.path.join(backup_dir, image_file)
+            if not os.path.exists(backup_path):
+                shutil.copy2(old_path, backup_path)
+                print(f"🔒 Backup erstellt: {backup_path}")
+            
+            # Build animal string for filename (animal_count format)
+            animals = []
+            if species1:
+                if count1:
+                    animals.append(f"{species1}_{count1}")
+                else:
+                    animals.append(f"{species1}_1")  # Default to 1 if no count specified
+            if species2:
+                if count2:
+                    animals.append(f"{species2}_{count2}")
+                else:
+                    animals.append(f"{species2}_1")  # Default to 1 if no count specified
+            
+            animal_str = "_".join(animals) if animals else "Unknown"
+            
+            # Convert date from DD.MM.YYYY to MM.DD.YY for filename
+            try:
+                if '.' in date:
+                    day, month, year = date.split('.')
+                    # Convert to MM.DD.YY format (last 2 digits of year)
+                    short_year = year[-2:] if len(year) == 4 else year
+                    date_str = f"{month}.{day}.{short_year}"
+                else:
+                    date_str = date
+            except Exception:
+                date_str = date
+            
+            # Build special names section (Generl and/or Luisa)
+            special_names = []
+            if generl_checked:
+                special_names.append("Generl")
+            if luisa_checked:
+                special_names.append("Luisa")
+            
+            special_str = "_".join(special_names) if special_names else ""
+            
+            # Build new filename: location_NRNR_MM.DD.YY_[Generl_Luisa_]Animal1_count_Animal2_count.jpeg
+            if special_str:
+                new_name = f"{location}_{new_id:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
+            else:
+                new_name = f"{location}_{new_id:04d}_{date_str}_{animal_str}.jpeg"
+            
+            new_path = os.path.join(IMAGES_FOLDER, new_name)
+            
+            # Handle duplicate names
+            counter = 1
+            base_new_name = new_name
+            while os.path.exists(new_path) and new_path != old_path:
+                name_without_ext = base_new_name.replace('.jpeg', '')
+                new_name = f"{name_without_ext}_{counter}.jpeg"
+                new_path = os.path.join(IMAGES_FOLDER, new_name)
+                counter += 1
+            
+            # Rename the file
+            if old_path != new_path:
+                os.rename(old_path, new_path)
+                print(f"📸 Bild umbenannt: {image_file} -> {new_name}")
+                return new_name
+            else:
+                print(f"📸 Bild behält Namen: {new_name}")
+                return new_name
+                
+        except Exception as e:
+            print(f"❌ Fehler beim Umbenennen des Bildes: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     def save_single_result(self, data):
         """Save a single result immediately to Excel file."""
