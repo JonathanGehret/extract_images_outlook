@@ -93,13 +93,59 @@ def extract_metadata_ocr(image_path):
         else:
             # Try traditional HH:MM:SS format
             time_matches = re.findall(r'\d{1,2}[:.]\d{2}[:.]\d{2}', all_text)
-            time_str = time_matches[0] if time_matches else ""
+            if time_matches:
+                time_str = time_matches[0]
+            else:
+                # Handle OCR errors where digits are missing (e.g., "809851" for "09:09:51")
+                # Look for 5-6 digit sequences that could be time
+                potential_times = re.findall(r'\d{5,6}', all_text)
+                for pot_time in potential_times:
+                    if len(pot_time) == 6:
+                        # Standard HHMMSS
+                        time_str = f"{pot_time[:2]}:{pot_time[2:4]}:{pot_time[4:6]}"
+                        break
+                    elif len(pot_time) == 5:
+                        # Missing first digit, prepend 0 (e.g., "80951" -> "08:09:51")
+                        padded_time = "0" + pot_time
+                        time_str = f"{padded_time[:2]}:{padded_time[2:4]}:{padded_time[4:6]}"
+                        break
+                else:
+                    time_str = ""
         
         # Extract date pattern (various formats)
         date_matches = re.findall(r'\d{2}[-:.]\d{2}[-:.]\d{4}', all_text)
         if not date_matches:
-            # Try different format
+            # Try different format (YYYY-MM-DD)
             date_matches = re.findall(r'\d{4}[-:.]\d{2}[-:.]\d{2}', all_text)
+        if not date_matches:
+            # Handle OCR errors where hyphens are missing (e.g., "2207-2025" for "22-07-2025")
+            incomplete_dates = re.findall(r'\d{4}-\d{4}', all_text)
+            for incomplete in incomplete_dates:
+                # If we find pattern like "2207-2025", convert to "22-07-2025"
+                if len(incomplete) == 9:  # Format: "DDMM-YYYY"
+                    day = incomplete[:2]
+                    month = incomplete[2:4]
+                    year = incomplete[5:]
+                    date_matches = [f"{day}-{month}-{year}"]
+                    break
+        if not date_matches:
+            # Try even more flexible patterns for 8-digit dates
+            eight_digit_dates = re.findall(r'\d{8}', all_text)
+            for date_str in eight_digit_dates:
+                # Could be DDMMYYYY or YYYYMMDD
+                if date_str.startswith('20'):  # Likely YYYYMMDD
+                    year = date_str[:4]
+                    month = date_str[4:6]
+                    day = date_str[6:8]
+                    date_matches = [f"{day}-{month}-{year}"]
+                    break
+                elif len(date_str) == 8:  # Likely DDMMYYYY
+                    day = date_str[:2]
+                    month = date_str[2:4]
+                    year = date_str[4:]
+                    if int(year) > 2000:  # Sanity check
+                        date_matches = [f"{day}-{month}-{year}"]
+                        break
         date_str = date_matches[0] if date_matches else ""
         
         return location, time_str, date_str

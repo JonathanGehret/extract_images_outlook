@@ -98,20 +98,90 @@ class ImageAnalyzer:
             
             # Extract time pattern - look for 6 consecutive digits (HHMMSS format)
             time_matches = re.findall(r'\d{6}', all_text)
+            time_str = ""
             if time_matches:
-                # Convert HHMMSS to HH:MM:SS
-                time_raw = time_matches[0]
-                time_str = f"{time_raw[:2]}:{time_raw[2:4]}:{time_raw[4:6]}"
-            else:
+                # Convert HHMMSS to HH:MM:SS with validation
+                for time_raw in time_matches:
+                    hours = int(time_raw[:2])
+                    minutes = int(time_raw[2:4])
+                    seconds = int(time_raw[4:6])
+                    
+                    # Validate time components
+                    if hours <= 23 and minutes <= 59 and seconds <= 59:
+                        time_str = f"{time_raw[:2]}:{time_raw[2:4]}:{time_raw[4:6]}"
+                        break
+                    # Handle common OCR errors (e.g., "809851" for "090951")
+                    elif hours > 23 or minutes > 59 or seconds > 59:
+                        # Try different corrections for OCR errors
+                        corrections = [
+                            "0" + time_raw[1:],  # Remove first digit: "809851" -> "009851" 
+                            time_raw[1:] + "0",  # Move last to first: not applicable for 6 digits
+                            "09" + time_raw[2:], # Common: "8" misread as "0": "809851" -> "099851" 
+                        ]
+                        
+                        for corrected in corrections:
+                            if len(corrected) == 6:
+                                c_hours = int(corrected[:2])
+                                c_minutes = int(corrected[2:4])
+                                c_seconds = int(corrected[4:6])
+                                if c_hours <= 23 and c_minutes <= 59 and c_seconds <= 59:
+                                    time_str = f"{corrected[:2]}:{corrected[2:4]}:{corrected[4:6]}"
+                                    break
+                        if time_str:
+                            break
+            
+            if not time_str:
                 # Try traditional HH:MM:SS format
                 time_matches = re.findall(r'\d{1,2}[:.]\d{2}[:.]\d{2}', all_text)
-                time_str = time_matches[0] if time_matches else ""
+                if time_matches:
+                    time_str = time_matches[0]
+                else:
+                    # Handle OCR errors where digits are missing
+                    potential_times = re.findall(r'\d{5}', all_text)
+                    for pot_time in potential_times:
+                        # Missing first digit, prepend 0 (e.g., "90951" -> "090951")
+                        padded_time = "0" + pot_time
+                        hours = int(padded_time[:2])
+                        minutes = int(padded_time[2:4])
+                        seconds = int(padded_time[4:6])
+                        if hours <= 23 and minutes <= 59 and seconds <= 59:
+                            time_str = f"{padded_time[:2]}:{padded_time[2:4]}:{padded_time[4:6]}"
+                            break
             
             # Extract date pattern (various formats)
             date_matches = re.findall(r'\d{2}[-:.]\d{2}[-:.]\d{4}', all_text)
             if not date_matches:
-                # Try different format
+                # Try different format (YYYY-MM-DD)
                 date_matches = re.findall(r'\d{4}[-:.]\d{2}[-:.]\d{2}', all_text)
+            if not date_matches:
+                # Handle OCR errors where hyphens are missing (e.g., "2207-2025" for "22-07-2025")
+                incomplete_dates = re.findall(r'\d{4}-\d{4}', all_text)
+                for incomplete in incomplete_dates:
+                    # If we find pattern like "2207-2025", convert to "22-07-2025"
+                    if len(incomplete) == 9:  # Format: "DDMM-YYYY"
+                        day = incomplete[:2]
+                        month = incomplete[2:4]
+                        year = incomplete[5:]
+                        date_matches = [f"{day}-{month}-{year}"]
+                        break
+            if not date_matches:
+                # Try even more flexible patterns for 8-digit dates
+                eight_digit_dates = re.findall(r'\d{8}', all_text)
+                for date_str in eight_digit_dates:
+                    # Could be DDMMYYYY or YYYYMMDD
+                    if date_str.startswith('20'):  # Likely YYYYMMDD
+                        year = date_str[:4]
+                        month = date_str[4:6]
+                        day = date_str[6:8]
+                        date_matches = [f"{day}-{month}-{year}"]
+                        break
+                    elif len(date_str) == 8:  # Likely DDMMYYYY
+                        day = date_str[:2]
+                        month = date_str[2:4]
+                        year = date_str[4:]
+                        if int(year) > 2000:  # Sanity check
+                            date_matches = [f"{day}-{month}-{year}"]
+                            break
             date_str = date_matches[0] if date_matches else ""
             
             return location, time_str, date_str
