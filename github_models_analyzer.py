@@ -97,7 +97,7 @@ DATE: [date in DD-MM-YYYY]"""
 
             # Prepare the payload (use correct parameter based on model)
             if model_name == "gpt-5":
-                # GPT-5 uses max_completion_tokens instead of max_tokens
+                # GPT-5 uses max_completion_tokens and doesn't support custom temperature
                 payload = {
                     "model": model_name,
                     "messages": [
@@ -117,8 +117,7 @@ DATE: [date in DD-MM-YYYY]"""
                             ]
                         }
                     ],
-                    "max_completion_tokens": 500,
-                    "temperature": 0.1
+                    "max_completion_tokens": 500
                 }
             else:
                 # GPT-4o and other models use max_tokens
