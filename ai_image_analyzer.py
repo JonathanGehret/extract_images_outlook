@@ -11,7 +11,7 @@ import openai
 # --- USER CONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
 OUTPUT_EXCEL = "analyzed_images.xlsx"
-OPENAI_API_KEY = "your-openai-api-key-here"  # Set your OpenAI API key
+OPENAI_API_KEY = "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"  # Set your OpenAI API key
 START_FROM_IMAGE = 1  # Set starting image number for continuation
 
 # Animal species list for AI to choose from
