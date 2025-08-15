@@ -24,8 +24,6 @@ from PIL import Image, ImageTk
 import base64
 import requests
 import re
-import shutil
-from collections import defaultdict
 
 # --- BENUTZER KONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
@@ -543,6 +541,10 @@ DATE: [date in DD.MM.YYYY]"""
         # Get the current image filename
         image_file = self.image_files[self.current_image_index]
         
+        # Extract number from filename (e.g., "fotofallen_2025_123.jpg" -> 123)
+        number_match = re.search(r'fotofallen_2025_(\d+)', image_file)
+        image_number = number_match.group(1) if number_match else ""
+        
         # Get the analyzed data
         location = self.location_var.get()
         date = self.date_var.get()
@@ -558,30 +560,9 @@ DATE: [date in DD.MM.YYYY]"""
         species2 = self.species2_var.get().strip()
         count2 = self.count2_var.get().strip()
         
-        # Validate required fields
-        if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
-            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)")
-            return
-            
-        if not date:
-            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein")
-            return
-        
-        # Get next sequential ID for this location
-        new_id = self.get_next_id_for_location(location)
-        
-        # Rename image file with new ID system
-        new_image_name = self.create_backup_and_rename_image(
-            image_file, location, date, species1, count1, species2, count2, new_id
-        )
-        
-        if new_image_name is None:
-            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes. Eintrag wird trotzdem gespeichert.")
-            new_image_name = image_file
-        
-        # Prepare Excel row data with new sequential ID
+        # Prepare Excel row data according to existing spreadsheet structure
         data = {
-            'Nr. ': new_id,  # Use sequential ID instead of original image number
+            'Nr. ': image_number,  # Number from filename (note the space)
             'Standort': location,  # Location (FP1/FP2/FP3/Nische)
             'Datum': date,  # Date
             'Uhrzeit': time,  # Time
@@ -597,13 +578,12 @@ DATE: [date in DD.MM.YYYY]"""
             'Sonstiges': sonstiges,  # Other
             'Korrektur': '',  # Correction field (empty for now)
             'animals_detected': animals,  # Keep for reference
-            'filename': new_image_name,  # Use new filename
-            'original_filename': image_file  # Keep original for reference
+            'filename': image_file  # Keep filename for reference
         }
         
         # Add to results
         self.results.append(data)
-        print(f"Daten gespeichert für Bild {new_id}: {location}, {date}, {time}")
+        print(f"Daten gespeichert für Bild {image_number}: {location}, {date}, {time}")
         
         # Immediately save this entry to Excel
         self.save_single_result(data)
@@ -611,35 +591,11 @@ DATE: [date in DD.MM.YYYY]"""
         # Move to next image
         if self.current_image_index < len(self.image_files) - 1:
             self.current_image_index += 1
-            # Update the image list to reflect any renamed files
-            self.refresh_image_list()
             self.load_current_image()
         else:
             # Save results when done with all images
             self.save_results()
-            messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {OUTPUT_EXCEL}")
-    
-    def refresh_image_list(self):
-        """Refresh the image file list to account for renamed files."""
-        try:
-            # Get updated list of image files
-            all_files = os.listdir(IMAGES_FOLDER)
-            image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png')) 
-                          and not f.startswith('.') and 'backup' not in f.lower()]
-            image_files.sort()
-            
-            # Update the list but try to maintain current position if possible
-            old_current_file = self.image_files[self.current_image_index] if self.current_image_index < len(self.image_files) else None
-            self.image_files = image_files
-            
-            # Try to find the current file in the new list, otherwise keep index
-            if old_current_file and old_current_file in self.image_files:
-                self.current_image_index = self.image_files.index(old_current_file)
-            elif self.current_image_index >= len(self.image_files):
-                self.current_image_index = max(0, len(self.image_files) - 1)
-                
-        except Exception as e:
-            print(f"Fehler beim Aktualisieren der Bilderliste: {e}")
+            messagebox.showinfo("Complete", f"Analysis complete! Results saved to {OUTPUT_EXCEL}")
     
     def skip_image(self):
         """Skip current image without saving data."""
@@ -720,102 +676,6 @@ DATE: [date in DD.MM.YYYY]"""
             traceback.print_exc()
         
         print(f"Ergebnisse gespeichert in {OUTPUT_EXCEL}")
-    
-    def get_next_id_for_location(self, location):
-        """Get the next sequential ID number for a specific location."""
-        try:
-            # Read existing Excel file to find the highest ID for this location
-            df = pd.read_excel(OUTPUT_EXCEL, sheet_name=location)
-            if not df.empty and 'Nr. ' in df.columns:
-                # Get all numeric IDs, excluding any non-numeric values
-                numeric_ids = []
-                for id_val in df['Nr. ']:
-                    try:
-                        if pd.notna(id_val):
-                            numeric_ids.append(int(float(id_val)))
-                    except (ValueError, TypeError):
-                        continue
-                
-                if numeric_ids:
-                    return max(numeric_ids) + 1
-                else:
-                    return 1
-            else:
-                return 1
-        except Exception as e:
-            print(f"Fehler beim Ermitteln der nächsten ID für {location}: {e}")
-            return 1
-    
-    def create_backup_and_rename_image(self, image_file, location, date, species1, count1, species2, count2, new_id):
-        """Create backup and rename image with location-based sequential numbering."""
-        try:
-            old_path = os.path.join(IMAGES_FOLDER, image_file)
-            if not os.path.exists(old_path):
-                print(f"⚠️ Bild nicht gefunden: {old_path}")
-                return None
-            
-            # Create backup directory if it doesn't exist
-            backup_dir = os.path.join(IMAGES_FOLDER, "backup_originals")
-            os.makedirs(backup_dir, exist_ok=True)
-            
-            # Create backup copy with original name
-            backup_path = os.path.join(backup_dir, image_file)
-            if not os.path.exists(backup_path):
-                shutil.copy2(old_path, backup_path)
-                print(f"🔒 Backup erstellt: {backup_path}")
-            
-            # Build animal string for filename
-            animals = []
-            if species1:
-                if count1:
-                    animals.append(f"{count1}{species1}")
-                else:
-                    animals.append(species1)
-            if species2:
-                if count2:
-                    animals.append(f"{count2}{species2}")
-                else:
-                    animals.append(species2)
-            
-            animal_str = "-".join(animals) if animals else "Unknown"
-            
-            # Convert date from DD.MM.YYYY to YYYY.MM.DD for filename
-            try:
-                if '.' in date:
-                    day, month, year = date.split('.')
-                    date_str = f"{year}.{month}.{day}"
-                else:
-                    date_str = date
-            except Exception:
-                date_str = date
-            
-            # Build new filename with sequential ID
-            new_name = f"{date_str}-{location}-{new_id:03d}-{animal_str}.jpeg"
-            new_path = os.path.join(IMAGES_FOLDER, new_name)
-            
-            # Handle duplicate names
-            counter = 1
-            base_new_name = new_name
-            while os.path.exists(new_path) and new_path != old_path:
-                name_without_ext = base_new_name.replace('.jpeg', '')
-                new_name = f"{name_without_ext}_{counter}.jpeg"
-                new_path = os.path.join(IMAGES_FOLDER, new_name)
-                counter += 1
-            
-            # Rename the file
-            if old_path != new_path:
-                os.rename(old_path, new_path)
-                print(f"📸 Bild umbenannt: {image_file} -> {new_name}")
-                return new_name
-            else:
-                print(f"📸 Bild behält Namen: {new_name}")
-                return new_name
-                
-        except Exception as e:
-            print(f"❌ Fehler beim Umbenennen des Bildes: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
     
     def save_single_result(self, data):
         """Save a single result immediately to Excel file."""
