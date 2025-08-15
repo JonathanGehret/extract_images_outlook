@@ -11,7 +11,7 @@ import re
 # --- USER CONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
 OUTPUT_EXCEL = "analyzed_images.xlsx"
-GITHUB_TOKEN = "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"  # Get from https://github.com/settings/tokens
+GITHUB_TOKEN = "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"  # Get from https://github.com/settings/tokens
 START_FROM_IMAGE = 1
 
 # GitHub Models API endpoint
