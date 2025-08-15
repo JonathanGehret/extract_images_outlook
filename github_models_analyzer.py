@@ -105,13 +105,13 @@ class ImageAnalyzer:
 
 2. METADATA: Read the text at the bottom of the image and extract:
    - Location: Look for FP1, FP2, FP3, or Nische (ignore any "NLP" prefix)
-   - Time: Extract time in HH:MM format (no seconds)
+   - Time: Extract time in HH:MM:SS format (with seconds)
    - Date: Extract date in DD.MM.YYYY format (German format with dots)
 
 Please format your response exactly like this:
 ANIMALS: [animal name with count or "None detected"]
 LOCATION: [FP1/FP2/FP3/Nische only]
-TIME: [time in HH:MM]
+TIME: [time in HH:MM:SS]
 DATE: [date in DD.MM.YYYY]"""
 
             # Prepare the payload (use correct parameter based on model)
@@ -214,10 +214,9 @@ DATE: [date in DD.MM.YYYY]"""
                     location = 'Nische'
             elif line.startswith('TIME:'):
                 time_str = line.replace('TIME:', '').strip()
-                # Convert HH:MM:SS to HH:MM if needed
-                if len(time_str.split(':')) == 3:
-                    time_parts = time_str.split(':')
-                    time_str = f"{time_parts[0]}:{time_parts[1]}"
+                # Convert HH:MM to HH:MM:00 if needed
+                if len(time_str.split(':')) == 2:
+                    time_str = f"{time_str}:00"
             elif line.startswith('DATE:'):
                 date_str = line.replace('DATE:', '').strip()
                 # Convert DD-MM-YYYY to DD.MM.YYYY if needed
@@ -259,10 +258,40 @@ DATE: [date in DD.MM.YYYY]"""
         self.date_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
         
-        ttk.Label(right_frame, text="Erkannte Tiere:").pack(anchor=tk.W)
-        animals_entry = tk.Text(right_frame, height=3, width=40)
+        # Animal species and count fields
+        ttk.Label(right_frame, text="Tierarten und Anzahl:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10,5))
+        
+        # First species
+        species_frame1 = ttk.Frame(right_frame)
+        species_frame1.pack(anchor=tk.W, fill=tk.X, pady=2)
+        ttk.Label(species_frame1, text="Art 1:").pack(side=tk.LEFT)
+        self.species1_var = tk.StringVar()
+        ttk.Entry(species_frame1, textvariable=self.species1_var, width=20).pack(side=tk.LEFT, padx=(5,10))
+        ttk.Label(species_frame1, text="Anzahl:").pack(side=tk.LEFT)
+        self.count1_var = tk.StringVar()
+        ttk.Entry(species_frame1, textvariable=self.count1_var, width=8).pack(side=tk.LEFT, padx=(5,0))
+        
+        # Second species
+        species_frame2 = ttk.Frame(right_frame)
+        species_frame2.pack(anchor=tk.W, fill=tk.X, pady=2)
+        ttk.Label(species_frame2, text="Art 2:").pack(side=tk.LEFT)
+        self.species2_var = tk.StringVar()
+        ttk.Entry(species_frame2, textvariable=self.species2_var, width=20).pack(side=tk.LEFT, padx=(5,10))
+        ttk.Label(species_frame2, text="Anzahl:").pack(side=tk.LEFT)
+        self.count2_var = tk.StringVar()
+        ttk.Entry(species_frame2, textvariable=self.count2_var, width=8).pack(side=tk.LEFT, padx=(5,0))
+        
+        # Summary field for reference (read-only)
+        ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10,0))
+        animals_entry = tk.Text(right_frame, height=2, width=40, state='disabled')
         animals_entry.pack(anchor=tk.W)
         self.animals_text = animals_entry
+        
+        # Bind events to update summary when species/count fields change
+        self.species1_var.trace('w', self.update_animals_summary)
+        self.count1_var.trace('w', self.update_animals_summary)
+        self.species2_var.trace('w', self.update_animals_summary)
+        self.count2_var.trace('w', self.update_animals_summary)
         
         # Additional fields for Excel columns
         ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10,0))
@@ -326,12 +355,48 @@ DATE: [date in DD.MM.YYYY]"""
         # Clear form
         self.clear_fields()
         
+    def update_animals_summary(self, *args):
+        """Update the animals summary field based on species and count inputs."""
+        summary_parts = []
+        
+        # Add first species if specified
+        if self.species1_var.get().strip():
+            species1 = self.species1_var.get().strip()
+            count1 = self.count1_var.get().strip()
+            if count1:
+                summary_parts.append(f"{count1} {species1}")
+            else:
+                summary_parts.append(species1)
+        
+        # Add second species if specified
+        if self.species2_var.get().strip():
+            species2 = self.species2_var.get().strip()
+            count2 = self.count2_var.get().strip()
+            if count2:
+                summary_parts.append(f"{count2} {species2}")
+            else:
+                summary_parts.append(species2)
+        
+        # Update summary field
+        summary_text = ", ".join(summary_parts) if summary_parts else "Keine Tiere entdeckt"
+        
+        self.animals_text.config(state='normal')
+        self.animals_text.delete(1.0, tk.END)
+        self.animals_text.insert(1.0, summary_text)
+        self.animals_text.config(state='disabled')
+    
     def clear_fields(self):
         """Clear all input fields."""
         self.location_var.set("")
         self.time_var.set("")
         self.date_var.set("")
+        self.species1_var.set("")
+        self.count1_var.set("")
+        self.species2_var.set("")
+        self.count2_var.set("")
+        self.animals_text.config(state='normal')
         self.animals_text.delete(1.0, tk.END)
+        self.animals_text.config(state='disabled')
         self.aktivitat_var.set("")
         self.interaktion_var.set("")
         self.sonstiges_text.delete(1.0, tk.END)
@@ -352,10 +417,16 @@ DATE: [date in DD.MM.YYYY]"""
         # Dummy locations
         locations = ["FP1", "FP2", "FP3", "Nische"]
         
-        # Dummy animals
-        animals_options = [
-            "1 Rabe", "2 Raben", "1 Steinadler", "1 Bartgeier", 
-            "3 Gämse", "1 Fuchs", "2 Steinböcke", "1 Murmeltier", "Keine Tiere entdeckt"
+        # Dummy species and their possible counts
+        species_options = [
+            ("Rabe", ["1", "2", "3"]),
+            ("Steinadler", ["1"]),
+            ("Bartgeier", ["1"]),
+            ("Gämse", ["1", "2", "3", "4", "5"]),
+            ("Fuchs", ["1"]),
+            ("Steinbock", ["1", "2", "3"]),
+            ("Murmeltier", ["1", "2"]),
+            ("", [""]),  # No animals option
         ]
         
         # Dummy activities
@@ -369,11 +440,33 @@ DATE: [date in DD.MM.YYYY]"""
         
         # Generate dummy data
         self.location_var.set(random.choice(locations))
-        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}")
+        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:00")
         self.date_var.set(f"{random.randint(1,31):02d}.{random.randint(7,8):02d}.2025")
         
-        self.animals_text.delete(1.0, tk.END)
-        self.animals_text.insert(1.0, random.choice(animals_options))
+        # Generate 1-2 random species
+        num_species = random.choices([0, 1, 2], weights=[20, 60, 20])[0]  # More likely to have 1 species
+        
+        if num_species >= 1:
+            species1, counts1 = random.choice(species_options[:-1])  # Exclude empty option
+            self.species1_var.set(species1)
+            self.count1_var.set(random.choice(counts1))
+        else:
+            self.species1_var.set("")
+            self.count1_var.set("")
+            
+        if num_species >= 2:
+            # Ensure second species is different from first
+            available_species = [s for s in species_options[:-1] if s[0] != self.species1_var.get()]
+            if available_species:
+                species2, counts2 = random.choice(available_species)
+                self.species2_var.set(species2)
+                self.count2_var.set(random.choice(counts2))
+            else:
+                self.species2_var.set("")
+                self.count2_var.set("")
+        else:
+            self.species2_var.set("")
+            self.count2_var.set("")
         
         self.aktivitat_var.set(random.choice(activities))
         self.interaktion_var.set(random.choice(interactions))
@@ -389,8 +482,10 @@ DATE: [date in DD.MM.YYYY]"""
         image_path = os.path.join(IMAGES_FOLDER, image_file)
         
         # Show analysis in progress
+        self.animals_text.config(state='normal')
         self.animals_text.delete(1.0, tk.END)
         self.animals_text.insert(1.0, "Analysiere mit KI...")
+        self.animals_text.config(state='disabled')
         self.root.update()
         
         # Analyze with GitHub Models
@@ -400,8 +495,43 @@ DATE: [date in DD.MM.YYYY]"""
         self.location_var.set(location)
         self.time_var.set(time_str)
         self.date_var.set(date_str)
-        self.animals_text.delete(1.0, tk.END)
-        self.animals_text.insert(1.0, animals)
+        
+        # Parse animals string and populate species fields
+        self.parse_animals_to_species(animals)
+    
+    def parse_animals_to_species(self, animals_text):
+        """Parse the animals description and populate species/count fields."""
+        # Clear existing data
+        self.species1_var.set("")
+        self.count1_var.set("")
+        self.species2_var.set("")
+        self.count2_var.set("")
+        
+        if not animals_text or animals_text.lower() in ["none detected", "keine tiere entdeckt", ""]:
+            return
+        
+        # Split by comma for multiple species
+        species_parts = [part.strip() for part in animals_text.split(',')]
+        
+        for i, part in enumerate(species_parts[:2]):  # Only handle first two species
+            # Try to extract count and species from patterns like "2 Ravens", "1 Fox"
+            import re
+            match = re.match(r'(\d+)\s+(.+)', part.strip())
+            if match:
+                count = match.group(1)
+                species = match.group(2)
+            else:
+                # No count found, assume count is 1
+                count = "1"
+                species = part.strip()
+            
+            # Set the appropriate fields
+            if i == 0:
+                self.species1_var.set(species)
+                self.count1_var.set(count)
+            elif i == 1:
+                self.species2_var.set(species)
+                self.count2_var.set(count)
     
     def confirm_and_next(self):
         """Save current data and move to next image."""
@@ -424,6 +554,12 @@ DATE: [date in DD.MM.YYYY]"""
         interaktion = self.interaktion_var.get()
         sonstiges = self.sonstiges_text.get(1.0, tk.END).strip()
         
+        # Get species and count data
+        species1 = self.species1_var.get().strip()
+        count1 = self.count1_var.get().strip()
+        species2 = self.species2_var.get().strip()
+        count2 = self.count2_var.get().strip()
+        
         # Prepare Excel row data according to existing spreadsheet structure
         data = {
             'Nr. ': image_number,  # Number from filename (note the space)
@@ -432,12 +568,12 @@ DATE: [date in DD.MM.YYYY]"""
             'Uhrzeit': time,  # Time
             'Dagmar': '',  # Empty field as in original structure
             'Recka': '',   # Empty field as in original structure
-            'Unbestimmt': 'Bg' if 'Bearded Vulture' in animals else '',  # "Bg" for Bearded Vultures
+            'Unbestimmt': 'Bg' if 'Bartgeier' in animals else '',  # "Bg" for Bearded Vultures
             'Aktivität': aktivitat,  # Activity column (full German spelling)
-            'Art 1': '',  # Species 1 (empty for now)
-            'Anzahl 1': '',  # Count 1 (empty for now)
-            'Art 2': '',  # Species 2 (empty for now)
-            'Anzahl 2': '',  # Count 2 (empty for now)
+            'Art 1': species1,  # Species 1
+            'Anzahl 1': count1,  # Count 1
+            'Art 2': species2,  # Species 2
+            'Anzahl 2': count2,  # Count 2
             'Interaktion': interaktion,  # Interaction
             'Sonstiges': sonstiges,  # Other
             'Korrektur': '',  # Correction field (empty for now)
