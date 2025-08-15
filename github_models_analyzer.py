@@ -16,6 +16,9 @@ START_FROM_IMAGE = 1
 
 # GitHub Models API endpoint
 GITHUB_API_BASE = "https://models.inference.ai.azure.com"
+# Alternative endpoints to try:
+# GITHUB_API_BASE = "https://api.github.com/models"
+# GITHUB_API_BASE = "https://models.github.com"
 
 # Animal species list for AI to choose from
 ANIMAL_SPECIES = [
@@ -42,6 +45,27 @@ class ImageAnalyzer:
     
     def analyze_with_github_models(self, image_path):
         """Use GitHub Models to analyze the image for both animals and metadata."""
+        # Try different API endpoints and models
+        endpoints_and_models = [
+            ("https://models.inference.ai.azure.com", "gpt-5"),
+            ("https://models.inference.ai.azure.com", "gpt-4o"),
+            ("https://api.github.com/models", "gpt-5"),
+            ("https://api.github.com/models", "gpt-4o"),
+        ]
+        
+        for api_base, model_name in endpoints_and_models:
+            try:
+                result = self._try_api_call(image_path, api_base, model_name)
+                if result != ("Error in analysis", "", "", ""):
+                    return result
+            except Exception as e:
+                print(f"Failed with {api_base} and {model_name}: {e}")
+                continue
+        
+        return "Error in analysis", "", "", ""
+    
+    def _try_api_call(self, image_path, api_base, model_name):
+        """Try a specific API endpoint and model."""
         try:
             # Encode image to base64
             with open(image_path, "rb") as image_file:
@@ -51,8 +75,11 @@ class ImageAnalyzer:
             # Prepare the API request
             headers = {
                 "Authorization": f"Bearer {GITHUB_TOKEN}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Accept": "application/json"
             }
+            
+            print(f"Trying: {api_base}/chat/completions with {model_name}")
             
             # Create comprehensive prompt for both tasks
             prompt = f"""Analyze this camera trap image and provide the following information:
@@ -71,7 +98,7 @@ TIME: [time in HH:MM:SS]
 DATE: [date in DD-MM-YYYY]"""
 
             payload = {
-                "model": "gpt-4o",  # Using GPT-4o via GitHub Models
+                "model": model_name,
                 "messages": [
                     {
                         "role": "user",
@@ -95,23 +122,25 @@ DATE: [date in DD-MM-YYYY]"""
             
             # Make API request
             response = requests.post(
-                f"{GITHUB_API_BASE}/chat/completions",
+                f"{api_base}/chat/completions",
                 headers=headers,
                 json=payload,
                 timeout=30
             )
+            
+            print(f"Response status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
                 analysis_text = result['choices'][0]['message']['content']
                 return self.parse_analysis_response(analysis_text)
             else:
-                print(f"GitHub Models API error: {response.status_code} - {response.text}")
-                return "Error in analysis", "", "", ""
+                print(f"API error: {response.status_code} - {response.text}")
+                raise Exception(f"API returned {response.status_code}")
                 
         except Exception as e:
-            print(f"GitHub Models analysis error: {e}")
-            return "Error in analysis", "", "", ""
+            print(f"API call error: {e}")
+            raise e
     
     def parse_analysis_response(self, analysis_text):
         """Parse the structured response from the AI model."""
@@ -281,6 +310,14 @@ if __name__ == "__main__":
         print("Get a token from: https://github.com/settings/tokens")
         print("Make sure to enable 'Models' scope when creating the token.")
         exit(1)
+    
+    print("GitHub Models Image Analyzer")
+    print("=" * 40)
+    print("If you get a 401 error:")
+    print("1. Go to https://github.com/settings/tokens")
+    print("2. Create a new token with 'Models' scope enabled")
+    print("3. Update GITHUB_TOKEN in this script")
+    print("=" * 40)
     
     analyzer = ImageAnalyzer()
     analyzer.run()
