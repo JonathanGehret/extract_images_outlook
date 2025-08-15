@@ -1,3 +1,7 @@
 extract-msg==0.48.7
 openpyxl
 pandas
+pytesseract
+openai
+pillow
+tkinter

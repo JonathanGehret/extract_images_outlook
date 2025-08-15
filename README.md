@@ -134,6 +134,13 @@ pip3 install -r requirements.txt
 
 This project is open source. Feel free to modify and distribute as needed.
 
+## Future Improvements
+
+The renaming script will be enhanced to handle edge cases such as:
+- Different numbering systems for different camera traps
+- More flexible animal detection and naming
+- Support for multiple file formats and data sources
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
