@@ -424,6 +424,9 @@ DATE: [date in DD-MM-YYYY]"""
         self.results.append(data)
         print(f"Saved data for image {image_number}: {location}, {date}, {time}")
         
+        # Immediately save this entry to Excel
+        self.save_single_result(data)
+        
         # Move to next image
         if self.current_image_index < len(self.image_files) - 1:
             self.current_image_index += 1
@@ -512,6 +515,50 @@ DATE: [date in DD-MM-YYYY]"""
             traceback.print_exc()
         
         print(f"Results saved to {OUTPUT_EXCEL}")
+    
+    def save_single_result(self, data):
+        """Save a single result immediately to Excel file."""
+        location = data.get('Standort', 'Unknown')
+        
+        if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
+            print(f"❌ Skipping unknown location: {location}")
+            return
+        
+        # Define the proper column order for existing Excel structure
+        expected_columns = [
+            'Nr. ', 'Standort', 'Datum', 'Uhrzeit', 'Dagmar', 'Recka', 'Unbestimmt',
+            'Aktivität', 'Art 1', 'Anzahl 1', 'Art 2', 'Anzahl 2', 'Interaktion', 
+            'Sonstiges', 'Korrektur'
+        ]
+        
+        try:
+            # Filter data to only include expected columns
+            filtered_data = {col: data.get(col, '') for col in expected_columns}
+            new_row = pd.DataFrame([filtered_data])
+            
+            # Try to read existing data from this sheet
+            try:
+                existing_df = pd.read_excel(OUTPUT_EXCEL, sheet_name=location)
+                # Only keep columns that exist in our expected structure
+                existing_df = existing_df.reindex(columns=expected_columns, fill_value='')
+                # Append new data to existing
+                combined_df = pd.concat([existing_df, new_row], ignore_index=True)
+                print(f"✅ Appending 1 row to existing {location} sheet (now {len(combined_df)} total rows)")
+            except Exception as e:
+                print(f"Could not read existing {location} sheet: {e}")
+                combined_df = new_row
+                print(f"✅ Creating new entry in {location} sheet")
+            
+            # Write to the specific sheet using ExcelWriter
+            with pd.ExcelWriter(OUTPUT_EXCEL, mode='a', if_sheet_exists='replace') as writer:
+                combined_df.to_excel(writer, sheet_name=location, index=False)
+            
+            print(f"📝 Immediately saved entry to {location} sheet in {OUTPUT_EXCEL}")
+            
+        except Exception as e:
+            print(f"❌ Error saving single result to Excel: {e}")
+            import traceback
+            traceback.print_exc()
         print(f"Total analyzed: {len(self.results)} images")
         print("New fields included:")
         print("- Aktivät: Activity information")
