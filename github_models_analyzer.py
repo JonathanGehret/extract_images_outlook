@@ -5,8 +5,6 @@ from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import base64
 import requests
-import json
-import re
 
 # --- USER CONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
@@ -16,9 +14,6 @@ START_FROM_IMAGE = 1
 
 # GitHub Models API endpoint
 GITHUB_API_BASE = "https://models.inference.ai.azure.com"
-# Alternative endpoints to try:
-# GITHUB_API_BASE = "https://api.github.com/models"
-# GITHUB_API_BASE = "https://models.github.com"
 
 # Animal species list for AI to choose from
 ANIMAL_SPECIES = [
@@ -84,41 +79,71 @@ class ImageAnalyzer:
             # Create comprehensive prompt for both tasks
             prompt = f"""Analyze this camera trap image and provide the following information:
 
-1. ANIMALS: Identify any animals visible in the image. Choose only from this list: {', '.join(ANIMAL_SPECIES)}. List each animal you can clearly see, separated by commas. If no animals are visible or you're unsure, say 'None detected'.
+1. ANIMALS: Identify any animals visible in the image. Choose only from this list: {', '.join(ANIMAL_SPECIES)}
+   - For Bearded Vultures: just say "Bearded Vulture" (no count needed)
+   - For all other animals: include the count (e.g., "2 Ravens", "1 Fox", "3 Chamois")
+   - If no animals visible, say "None detected"
 
-2. METADATA: Read the text at the bottom of the image (camera trap metadata) and extract:
-   - Location/Camera ID (usually starts with FP1, FP2, FP3, or might say "Nische")
-   - Time (in HH:MM:SS format)
-   - Date (in DD-MM-YYYY format)
+2. METADATA: Read the text at the bottom of the image and extract:
+   - Location: Look for FP1, FP2, FP3, or Nische (ignore any "NLP" prefix)
+   - Time: Extract time in HH:MM:SS format
+   - Date: Extract date in DD-MM-YYYY format
 
 Please format your response exactly like this:
-ANIMALS: [list of animals or 'None detected']
-LOCATION: [camera location]
+ANIMALS: [animal name with count or "None detected"]
+LOCATION: [FP1/FP2/FP3/Nische only]
 TIME: [time in HH:MM:SS]
 DATE: [date in DD-MM-YYYY]"""
 
-            payload = {
-                "model": model_name,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
+            # Prepare the payload (use correct parameter based on model)
+            if model_name == "gpt-5":
+                # GPT-5 uses max_completion_tokens instead of max_tokens
+                payload = {
+                    "model": model_name,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
                                 }
-                            }
-                        ]
-                    }
-                ],
-                "max_tokens": 500,
-                "temperature": 0.1
-            }
+                            ]
+                        }
+                    ],
+                    "max_completion_tokens": 500,
+                    "temperature": 0.1
+                }
+            else:
+                # GPT-4o and other models use max_tokens
+                payload = {
+                    "model": model_name,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "max_tokens": 500,
+                    "temperature": 0.1
+                }
             
             # Make API request
             response = requests.post(
@@ -160,6 +185,15 @@ DATE: [date in DD-MM-YYYY]"""
                 animals = line.replace('ANIMALS:', '').strip()
             elif line.startswith('LOCATION:'):
                 location = line.replace('LOCATION:', '').strip()
+                # Clean up location - remove "NLP" prefix and extract only FP1/FP2/FP3/Nische
+                if 'FP1' in location.upper():
+                    location = 'FP1'
+                elif 'FP2' in location.upper():
+                    location = 'FP2'
+                elif 'FP3' in location.upper():
+                    location = 'FP3'
+                elif 'NISCHE' in location.upper():
+                    location = 'Nische'
             elif line.startswith('TIME:'):
                 time_str = line.replace('TIME:', '').strip()
             elif line.startswith('DATE:'):
