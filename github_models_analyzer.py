@@ -105,14 +105,14 @@ class ImageAnalyzer:
 
 2. METADATA: Read the text at the bottom of the image and extract:
    - Location: Look for FP1, FP2, FP3, or Nische (ignore any "NLP" prefix)
-   - Time: Extract time in HH:MM:SS format
-   - Date: Extract date in DD-MM-YYYY format
+   - Time: Extract time in HH:MM format (no seconds)
+   - Date: Extract date in DD.MM.YYYY format (German format with dots)
 
 Please format your response exactly like this:
 ANIMALS: [animal name with count or "None detected"]
 LOCATION: [FP1/FP2/FP3/Nische only]
-TIME: [time in HH:MM:SS]
-DATE: [date in DD-MM-YYYY]"""
+TIME: [time in HH:MM]
+DATE: [date in DD.MM.YYYY]"""
 
             # Prepare the payload (use correct parameter based on model)
             if model_name == "gpt-5":
@@ -214,8 +214,15 @@ DATE: [date in DD-MM-YYYY]"""
                     location = 'Nische'
             elif line.startswith('TIME:'):
                 time_str = line.replace('TIME:', '').strip()
+                # Convert HH:MM:SS to HH:MM if needed
+                if len(time_str.split(':')) == 3:
+                    time_parts = time_str.split(':')
+                    time_str = f"{time_parts[0]}:{time_parts[1]}"
             elif line.startswith('DATE:'):
                 date_str = line.replace('DATE:', '').strip()
+                # Convert DD-MM-YYYY to DD.MM.YYYY if needed
+                if '-' in date_str and '.' not in date_str:
+                    date_str = date_str.replace('-', '.')
         
         return animals, location, time_str, date_str
     
@@ -362,8 +369,8 @@ DATE: [date in DD-MM-YYYY]"""
         
         # Generate dummy data
         self.location_var.set(random.choice(locations))
-        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:{random.randint(0,59):02d}")
-        self.date_var.set(f"{random.randint(1,31):02d}-{random.randint(7,8):02d}-2025")
+        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}")
+        self.date_var.set(f"{random.randint(1,31):02d}.{random.randint(7,8):02d}.2025")
         
         self.animals_text.delete(1.0, tk.END)
         self.animals_text.insert(1.0, random.choice(animals_options))
