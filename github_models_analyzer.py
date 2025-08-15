@@ -5,10 +5,11 @@ from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import base64
 import requests
+import re
 
 # --- USER CONFIGURATION ---
 IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
-OUTPUT_EXCEL = "analyzed_images.xlsx"
+OUTPUT_EXCEL = "/home/jonathan/development/extract_images_outlook/analyzed_images.xlsx"
 GITHUB_TOKEN = "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"  # Get from https://github.com/settings/tokens
 START_FROM_IMAGE = 1
 
@@ -279,6 +280,10 @@ DATE: [date in DD-MM-YYYY]"""
         self.progress_var.set(progress)
         
         # Clear form
+        self.clear_fields()
+        
+    def clear_fields(self):
+        """Clear all input fields."""
         self.location_var.set("")
         self.time_var.set("")
         self.date_var.set("")
@@ -306,19 +311,52 @@ DATE: [date in DD-MM-YYYY]"""
     
     def confirm_and_next(self):
         """Save current data and move to next image."""
-        # Get data from form
+        if not self.image_files:
+            return
+            
+        # Get the current image filename
         image_file = self.image_files[self.current_image_index]
+        
+        # Extract number from filename (e.g., "fotofallen_2025_123.jpg" -> 123)
+        number_match = re.search(r'fotofallen_2025_(\d+)', image_file)
+        image_number = number_match.group(1) if number_match else ""
+        
+        # Get the analyzed data
+        location = self.location_var.get()
+        date = self.date_var.get()
+        time = self.time_var.get()
+        animals = self.animals_text.get(1.0, tk.END).strip()
+        
+        # Prepare Excel row data according to your spreadsheet columns
         data = {
-            'image_file': image_file,
-            'location': self.location_var.get(),
-            'time': self.time_var.get(),
-            'date': self.date_var.get(),
-            'animals': self.animals_text.get(1.0, tk.END).strip()
+            'Nr': image_number,  # Number from filename
+            'Standort': location,  # Location (FP1/FP2/FP3/Nische)
+            'Datum': date,  # Date
+            'Uhrzeit': time,  # Time
+            'Aktivät': '',  # Activity column (empty for now)
+            'Art 1': '',  # Species 1 (empty for now)
+            'Anzahl': '',  # Count (empty for now)
+            'Art 2': '',  # Species 2 (empty for now)
+            'Anzahl.1': '',  # Count 2 (empty for now)
+            'Interaction': '',  # Interaction (empty for now)
+            'Sonstiges': '',  # Other (empty for now)
+            'Konstruk': '',  # Construction (empty for now)
+            'Unbestimmt': 'Bg' if 'Bearded Vulture' in animals else '',  # "Bg" for Bearded Vultures
+            'filename': image_file  # Keep filename for reference
         }
         
+        # Add to results
         self.results.append(data)
-        self.current_image_index += 1
-        self.load_current_image()
+        print(f"Saved data for image {image_number}: {location}, {date}, {time}")
+        
+        # Move to next image
+        if self.current_image_index < len(self.image_files) - 1:
+            self.current_image_index += 1
+            self.load_current_image()
+        else:
+            # Save results when done with all images
+            self.save_results()
+            messagebox.showinfo("Complete", f"Analysis complete! Results saved to {OUTPUT_EXCEL}")
     
     def skip_image(self):
         """Skip current image without saving data."""
@@ -326,11 +364,20 @@ DATE: [date in DD-MM-YYYY]"""
         self.load_current_image()
     
     def save_results(self):
-        """Save results to Excel file."""
+        """Save results to Excel file with proper column mapping."""
         if self.results:
             df = pd.DataFrame(self.results)
             df.to_excel(OUTPUT_EXCEL, index=False)
             print(f"Results saved to {OUTPUT_EXCEL}")
+            print(f"Analyzed {len(self.results)} images")
+            print("Excel columns:")
+            print("- Nr: Image number from filename") 
+            print("- Standort: Location (FP1/FP2/FP3/Nische)")
+            print("- Datum: Date")
+            print("- Uhrzeit: Time")
+            print("- Unbestimmt: 'Bg' for Bearded Vultures")
+        else:
+            print("No results to save")
     
     def run(self):
         """Start the GUI application."""
