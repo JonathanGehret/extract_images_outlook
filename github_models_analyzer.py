@@ -399,21 +399,23 @@ DATE: [date in DD-MM-YYYY]"""
         interaktion = self.interaktion_var.get()
         sonstiges = self.sonstiges_text.get(1.0, tk.END).strip()
         
-        # Prepare Excel row data according to your spreadsheet columns
+        # Prepare Excel row data according to existing spreadsheet structure
         data = {
-            'Nr': image_number,  # Number from filename
+            'Nr. ': image_number,  # Number from filename (note the space)
             'Standort': location,  # Location (FP1/FP2/FP3/Nische)
             'Datum': date,  # Date
             'Uhrzeit': time,  # Time
-            'Aktivät': aktivitat,  # Activity column
+            'Dagmar': '',  # Empty field as in original structure
+            'Recka': '',   # Empty field as in original structure
+            'Unbestimmt': 'Bg' if 'Bearded Vulture' in animals else '',  # "Bg" for Bearded Vultures
+            'Aktivität': aktivitat,  # Activity column (full German spelling)
             'Art 1': '',  # Species 1 (empty for now)
-            'Anzahl': '',  # Count (empty for now)
+            'Anzahl 1': '',  # Count 1 (empty for now)
             'Art 2': '',  # Species 2 (empty for now)
-            'Anzahl.1': '',  # Count 2 (empty for now)
+            'Anzahl 2': '',  # Count 2 (empty for now)
             'Interaktion': interaktion,  # Interaction
             'Sonstiges': sonstiges,  # Other
-            'Konstruk': '',  # Construction (empty for now)
-            'Unbestimmt': 'Bg' if 'Bearded Vulture' in animals else '',  # "Bg" for Bearded Vultures
+            'Korrektur': '',  # Correction field (empty for now)
             'animals_detected': animals,  # Keep for reference
             'filename': image_file  # Keep filename for reference
         }
@@ -450,6 +452,13 @@ DATE: [date in DD-MM-YYYY]"""
                 location_groups[location] = []
             location_groups[location].append(result)
         
+        # Define the proper column order for existing Excel structure
+        expected_columns = [
+            'Nr. ', 'Standort', 'Datum', 'Uhrzeit', 'Dagmar', 'Recka', 'Unbestimmt',
+            'Aktivität', 'Art 1', 'Anzahl 1', 'Art 2', 'Anzahl 2', 'Interaktion', 
+            'Sonstiges', 'Korrektur'
+        ]
+        
         # Load existing Excel file or create new one
         try:
             # Load existing Excel file
@@ -461,30 +470,46 @@ DATE: [date in DD-MM-YYYY]"""
             existing_sheets = []
         
         # Save to appropriate sheets
-        with pd.ExcelWriter(OUTPUT_EXCEL, mode='a' if existing_sheets else 'w', 
-                           if_sheet_exists='overlay' if existing_sheets else None) as writer:
-            
-            for location, data_list in location_groups.items():
-                if location and location in ['FP1', 'FP2', 'FP3', 'Nische']:
-                    df = pd.DataFrame(data_list)
-                    
-                    # Try to load existing data from this sheet
-                    try:
-                        if location in existing_sheets:
-                            existing_df = pd.read_excel(OUTPUT_EXCEL, sheet_name=location)
-                            # Append new data to existing
-                            df = pd.concat([existing_df, df], ignore_index=True)
-                            print(f"Appending {len(data_list)} rows to existing {location} sheet")
-                        else:
-                            print(f"Creating new {location} sheet with {len(data_list)} rows")
-                    except Exception as e:
-                        print(f"Could not read existing {location} sheet: {e}")
-                    
-                    # Write to sheet named after location
-                    df.to_excel(writer, sheet_name=location, index=False)
-                    print(f"Saved {len(data_list)} images to {location} sheet")
-                else:
-                    print(f"Skipping unknown location: {location}")
+        try:
+            with pd.ExcelWriter(OUTPUT_EXCEL, mode='a' if existing_sheets else 'w', 
+                               if_sheet_exists='replace' if existing_sheets else None) as writer:
+                
+                for location, data_list in location_groups.items():
+                    if location and location in ['FP1', 'FP2', 'FP3', 'Nische']:
+                        # Create DataFrame with only the expected columns
+                        filtered_data = []
+                        for item in data_list:
+                            filtered_item = {col: item.get(col, '') for col in expected_columns}
+                            filtered_data.append(filtered_item)
+                        
+                        new_df = pd.DataFrame(filtered_data)
+                        
+                        # Try to load existing data from this sheet
+                        try:
+                            if location in existing_sheets:
+                                existing_df = pd.read_excel(OUTPUT_EXCEL, sheet_name=location)
+                                # Only keep columns that exist in our expected structure
+                                existing_df = existing_df.reindex(columns=expected_columns, fill_value='')
+                                # Append new data to existing
+                                combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+                                print(f"Appending {len(data_list)} rows to existing {location} sheet")
+                            else:
+                                combined_df = new_df
+                                print(f"Creating new {location} sheet with {len(data_list)} rows")
+                        except Exception as e:
+                            print(f"Could not read existing {location} sheet: {e}")
+                            combined_df = new_df
+                        
+                        # Write to sheet named after location
+                        combined_df.to_excel(writer, sheet_name=location, index=False)
+                        print(f"✅ Saved {len(data_list)} images to {location} sheet")
+                    else:
+                        print(f"❌ Skipping unknown location: {location}")
+                        
+        except Exception as e:
+            print(f"Error saving to Excel: {e}")
+            import traceback
+            traceback.print_exc()
         
         print(f"Results saved to {OUTPUT_EXCEL}")
         print(f"Total analyzed: {len(self.results)} images")
