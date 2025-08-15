@@ -48,6 +48,10 @@ class ImageAnalyzer:
         self.image_files = self.get_image_files()
         self.results = []
         
+        # Initialize General and Luisa tracking variables
+        self.generl_var = tk.BooleanVar()
+        self.luisa_var = tk.BooleanVar()
+        
         # Create GUI
         self.setup_gui()
         
@@ -314,6 +318,25 @@ DATE: [date in DD.MM.YYYY]"""
                                        variable=self.dummy_mode_var)
         dummy_checkbox.pack(anchor=tk.W, pady=(10,0))
         
+        # General and Luisa buttons frame
+        special_frame = ttk.Frame(right_frame)
+        special_frame.pack(pady=10)
+        ttk.Label(special_frame, text="Spezielle Markierungen:").pack(anchor=tk.W)
+        
+        # General and Luisa checkboxes
+        checkboxes_frame = ttk.Frame(special_frame)
+        checkboxes_frame.pack(anchor=tk.W, pady=5)
+        
+        generl_checkbox = ttk.Checkbutton(checkboxes_frame, text="Generl", 
+                                         variable=self.generl_var,
+                                         command=self.on_generl_toggle)
+        generl_checkbox.pack(side=tk.LEFT, padx=10)
+        
+        luisa_checkbox = ttk.Checkbutton(checkboxes_frame, text="Luisa", 
+                                       variable=self.luisa_var,
+                                       command=self.on_luisa_toggle)
+        luisa_checkbox.pack(side=tk.LEFT, padx=10)
+        
         # Control buttons
         button_frame = ttk.Frame(right_frame)
         button_frame.pack(pady=20)
@@ -331,6 +354,20 @@ DATE: [date in DD.MM.YYYY]"""
         
         # Load first image
         self.load_current_image()
+    
+    def on_generl_toggle(self):
+        """Handle Generl checkbox toggle."""
+        if self.generl_var.get():
+            print("✅ Generl markiert")
+        else:
+            print("❌ Generl entfernt")
+    
+    def on_luisa_toggle(self):
+        """Handle Luisa checkbox toggle."""
+        if self.luisa_var.get():
+            print("✅ Luisa markiert")
+        else:
+            print("❌ Luisa entfernt")
     
     def load_current_image(self):
         """Lädt und zeigt das aktuelle Bild an."""
@@ -558,6 +595,10 @@ DATE: [date in DD.MM.YYYY]"""
         species2 = self.species2_var.get().strip()
         count2 = self.count2_var.get().strip()
         
+        # Get General and Luisa values
+        generl_checked = self.generl_var.get()
+        luisa_checked = self.luisa_var.get()
+        
         # Validate required fields
         if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
             messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)")
@@ -572,7 +613,7 @@ DATE: [date in DD.MM.YYYY]"""
         
         # Rename image file with new ID system
         new_image_name = self.create_backup_and_rename_image(
-            image_file, location, date, species1, count1, species2, count2, new_id
+            image_file, location, date, species1, count1, species2, count2, new_id, generl_checked, luisa_checked
         )
         
         if new_image_name is None:
@@ -595,6 +636,8 @@ DATE: [date in DD.MM.YYYY]"""
             'Anzahl 2': count2,  # Count 2
             'Interaktion': interaktion,  # Interaction
             'Sonstiges': sonstiges,  # Other
+            'General': 'X' if generl_checked else '',  # General column
+            'Luisa': 'X' if luisa_checked else '',  # Luisa column
             'Korrektur': '',  # Correction field (empty for now)
             'animals_detected': animals,  # Keep for reference
             'filename': new_image_name,  # Use new filename
@@ -664,7 +707,7 @@ DATE: [date in DD.MM.YYYY]"""
         expected_columns = [
             'Nr. ', 'Standort', 'Datum', 'Uhrzeit', 'Dagmar', 'Recka', 'Unbestimmt',
             'Aktivität', 'Art 1', 'Anzahl 1', 'Art 2', 'Anzahl 2', 'Interaktion', 
-            'Sonstiges', 'Korrektur'
+            'Sonstiges', 'General', 'Luisa', 'Korrektur'
         ]
         
         # Load existing Excel file or create new one
@@ -746,7 +789,7 @@ DATE: [date in DD.MM.YYYY]"""
             print(f"Fehler beim Ermitteln der nächsten ID für {location}: {e}")
             return 1
     
-    def create_backup_and_rename_image(self, image_file, location, date, species1, count1, species2, count2, new_id):
+    def create_backup_and_rename_image(self, image_file, location, date, species1, count1, species2, count2, new_id, generl_checked=False, luisa_checked=False):
         """Create backup and rename image with location-based sequential numbering."""
         try:
             old_path = os.path.join(IMAGES_FOLDER, image_file)
@@ -764,33 +807,48 @@ DATE: [date in DD.MM.YYYY]"""
                 shutil.copy2(old_path, backup_path)
                 print(f"🔒 Backup erstellt: {backup_path}")
             
-            # Build animal string for filename
+            # Build animal string for filename (animal_count format)
             animals = []
             if species1:
                 if count1:
-                    animals.append(f"{count1}{species1}")
+                    animals.append(f"{species1}_{count1}")
                 else:
-                    animals.append(species1)
+                    animals.append(f"{species1}_1")  # Default to 1 if no count specified
             if species2:
                 if count2:
-                    animals.append(f"{count2}{species2}")
+                    animals.append(f"{species2}_{count2}")
                 else:
-                    animals.append(species2)
+                    animals.append(f"{species2}_1")  # Default to 1 if no count specified
             
-            animal_str = "-".join(animals) if animals else "Unknown"
+            animal_str = "_".join(animals) if animals else "Unknown"
             
-            # Convert date from DD.MM.YYYY to YYYY.MM.DD for filename
+            # Convert date from DD.MM.YYYY to MM.DD.YY for filename
             try:
                 if '.' in date:
                     day, month, year = date.split('.')
-                    date_str = f"{year}.{month}.{day}"
+                    # Convert to MM.DD.YY format (last 2 digits of year)
+                    short_year = year[-2:] if len(year) == 4 else year
+                    date_str = f"{month}.{day}.{short_year}"
                 else:
                     date_str = date
             except Exception:
                 date_str = date
             
-            # Build new filename with sequential ID
-            new_name = f"{date_str}-{location}-{new_id:03d}-{animal_str}.jpeg"
+            # Build special names section (Generl and/or Luisa)
+            special_names = []
+            if generl_checked:
+                special_names.append("Generl")
+            if luisa_checked:
+                special_names.append("Luisa")
+            
+            special_str = "_".join(special_names) if special_names else ""
+            
+            # Build new filename: location_NRNR_MM.DD.YY_[Generl_Luisa_]Animal1_count_Animal2_count.jpeg
+            if special_str:
+                new_name = f"{location}_{new_id:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
+            else:
+                new_name = f"{location}_{new_id:04d}_{date_str}_{animal_str}.jpeg"
+            
             new_path = os.path.join(IMAGES_FOLDER, new_name)
             
             # Handle duplicate names
@@ -829,7 +887,7 @@ DATE: [date in DD.MM.YYYY]"""
         expected_columns = [
             'Nr. ', 'Standort', 'Datum', 'Uhrzeit', 'Dagmar', 'Recka', 'Unbestimmt',
             'Aktivität', 'Art 1', 'Anzahl 1', 'Art 2', 'Anzahl 2', 'Interaktion', 
-            'Sonstiges', 'Korrektur'
+            'Sonstiges', 'General', 'Luisa', 'Korrektur'
         ]
         
         try:
