@@ -166,15 +166,48 @@ class Launcher(tk.Tk):
         ExtractWindow(self)
 
     def open_analyzer(self):
-        # Launch the analyzer script in a new process so it runs its own Tk mainloop
+        # Show a small dialog to collect optional token and paths, then launch analyzer with env
         analyzer_script = os.path.join(os.path.dirname(__file__), 'github_models_analyzer_current_broken.py')
         if not os.path.exists(analyzer_script):
             messagebox.showerror('Error', f'Analyzer script not found: {analyzer_script}')
             return
 
-        # Use the same Python interpreter to run analyzer
-        subprocess.Popen([sys.executable, analyzer_script], cwd=os.path.dirname(__file__))
-        messagebox.showinfo('Launched', 'Analyzer launched in a separate process')
+        dlg = tk.Toplevel(self)
+        dlg.title('Launch Analyzer - Options')
+        dlg.geometry('620x220')
+
+        token_var = tk.StringVar()
+        images_var = tk.StringVar(value='')
+        out_var = tk.StringVar(value='')
+
+        frm = ttk.Frame(dlg, padding=10)
+        frm.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(frm, text='GitHub Models Token (optional - will set GITHUB_MODELS_TOKEN):').grid(row=0, column=0, sticky='w')
+        ttk.Entry(frm, textvariable=token_var, width=60, show='*').grid(row=0, column=1, sticky='w')
+        ttk.Label(frm, text='Images folder (optional - will set ANALYZER_IMAGES_FOLDER):').grid(row=1, column=0, sticky='w')
+        ttk.Entry(frm, textvariable=images_var, width=60).grid(row=1, column=1, sticky='w')
+        ttk.Button(frm, text='Browse', command=lambda: images_var.set(filedialog.askdirectory())).grid(row=1, column=2, padx=6)
+        ttk.Label(frm, text='Output Excel (optional - will set ANALYZER_OUTPUT_EXCEL):').grid(row=2, column=0, sticky='w')
+        ttk.Entry(frm, textvariable=out_var, width=60).grid(row=2, column=1, sticky='w')
+        ttk.Button(frm, text='Browse', command=lambda: out_var.set(filedialog.asksaveasfilename(defaultextension='.xlsx', filetypes=[('Excel','*.xlsx')]))).grid(row=2, column=2, padx=6)
+
+        def launch():
+            env = os.environ.copy()
+            if token_var.get().strip():
+                env['GITHUB_MODELS_TOKEN'] = token_var.get().strip()
+            if images_var.get().strip():
+                env['ANALYZER_IMAGES_FOLDER'] = images_var.get().strip()
+            if out_var.get().strip():
+                env['ANALYZER_OUTPUT_EXCEL'] = out_var.get().strip()
+
+            subprocess.Popen([sys.executable, analyzer_script], cwd=os.path.dirname(__file__), env=env)
+            messagebox.showinfo('Launched', 'Analyzer launched in a separate process')
+            dlg.destroy()
+
+        btns = ttk.Frame(frm)
+        btns.grid(row=3, column=0, columnspan=3, pady=12)
+        ttk.Button(btns, text='Launch Analyzer', command=launch).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btns, text='Cancel', command=dlg.destroy).pack(side=tk.LEFT, padx=6)
 
     def run_renamer_dialog(self):
         excel_path = filedialog.askopenfilename(title='Select Excel file (Fotofallendaten)', filetypes=[('Excel files', '*.xlsx *.xls')])
@@ -212,10 +245,16 @@ class Launcher(tk.Tk):
         with open(tmp_path, 'w', encoding='utf-8') as f:
             f.write(src_mod)
 
+        # Ask whether dry-run
+        dry = messagebox.askyesno('Dry run', 'Run a dry-run (no files will be renamed)?')
+
         # Run in a thread to avoid blocking the GUI
         def runner():
             try:
-                proc = subprocess.run([sys.executable, tmp_path], cwd=os.path.dirname(__file__), capture_output=True, text=True)
+                cmd = [sys.executable, tmp_path]
+                if dry:
+                    cmd.append('--dry-run')
+                proc = subprocess.run(cmd, cwd=os.path.dirname(__file__), capture_output=True, text=True)
                 output = proc.stdout + '\n' + proc.stderr
                 # Show a simple dialog with the result (could be long)
                 out_win = tk.Toplevel(self)

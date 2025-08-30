@@ -19,16 +19,18 @@ Datum: August 2025
 import os
 import pandas as pd
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
 import base64
 import requests
 import re
 
 # --- BENUTZER KONFIGURATION ---
-IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
-OUTPUT_EXCEL = "/home/jonathan/development/extract_images_outlook/analyzed_images.xlsx"
-GITHUB_TOKEN = "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"  # Von https://github.com/settings/tokens
+# Defaults can be overridden via environment variables
+IMAGES_FOLDER = os.environ.get("ANALYZER_IMAGES_FOLDER", "")
+OUTPUT_EXCEL = os.environ.get("ANALYZER_OUTPUT_EXCEL", "")
+# Read GitHub token from env to avoid storing secrets in code
+GITHUB_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN", "")
 START_FROM_IMAGE = 1
 
 # GitHub Models API endpoint
@@ -42,19 +44,33 @@ ANIMAL_SPECIES = [
 
 class ImageAnalyzer:
     def __init__(self):
+        # Instance-configurable paths (set via UI or env)
+        self.images_folder = IMAGES_FOLDER
+        self.output_excel = OUTPUT_EXCEL
+
         self.current_image_index = START_FROM_IMAGE - 1
-        self.image_files = self.get_image_files()
+        self.image_files = []
         self.results = []
-        
+
         # Create GUI
         self.setup_gui()
+
+        # Populate images list (if folder already set via env)
+        self.refresh_image_files()
         
     def get_image_files(self):
         """Get list of image files in the folder."""
         files = []
-        for f in os.listdir(IMAGES_FOLDER):
-            if f.lower().endswith(('.jpg', '.jpeg', '.png')):
-                files.append(f)
+        if not self.images_folder:
+            return []
+
+        try:
+            for f in os.listdir(self.images_folder):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    files.append(f)
+        except FileNotFoundError:
+            return []
+
         return sorted(files)
     
     def analyze_with_github_models(self, image_path):
@@ -234,55 +250,68 @@ DATE: [date in DD.MM.YYYY]"""
         # Initialize Generl and Luisa tracking variables
         self.generl_var = tk.BooleanVar()
         self.luisa_var = tk.BooleanVar()
-        
+        # Top: folder selectors
+        folder_frame = ttk.Frame(self.root)
+        folder_frame.pack(fill=tk.X, padx=10, pady=(10,0))
+
+        ttk.Label(folder_frame, text="Bilder-Ordner:").pack(side=tk.LEFT)
+        self.images_folder_var = tk.StringVar(value=self.images_folder or "Nicht ausgewählt")
+        ttk.Label(folder_frame, textvariable=self.images_folder_var, width=60).pack(side=tk.LEFT, padx=(5,10))
+        ttk.Button(folder_frame, text="Wählen...", command=self.choose_images_folder).pack(side=tk.LEFT)
+
+        ttk.Label(folder_frame, text="  Ausgabe Excel:").pack(side=tk.LEFT, padx=(20,0))
+        self.output_excel_var = tk.StringVar(value=self.output_excel or "Nicht ausgewählt")
+        ttk.Label(folder_frame, textvariable=self.output_excel_var, width=40).pack(side=tk.LEFT, padx=(5,10))
+        ttk.Button(folder_frame, text="Wählen...", command=self.choose_output_excel).pack(side=tk.LEFT)
+
         # Create main frames
         left_frame = ttk.Frame(self.root, width=600)
         right_frame = ttk.Frame(self.root, width=600)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
+
         # Left side - Image display
         ttk.Label(left_frame, text="Image", font=("Arial", 14)).pack()
         self.image_label = ttk.Label(left_frame)
         self.image_label.pack(pady=10)
-        
+
         # Right side - Data entry form
         ttk.Label(right_frame, text="Bildanalyse", font=("Arial", 14)).pack()
-        
+
         # Form fields
         ttk.Label(right_frame, text="Standort:").pack(anchor=tk.W)
         self.location_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.location_var, width=30).pack(anchor=tk.W)
-        
+
         ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W)
         self.time_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.time_var, width=30).pack(anchor=tk.W)
-        
+
         ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W)
         self.date_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
-        
+
         # Generl and Luisa checkboxes
         special_frame = ttk.Frame(right_frame)
         special_frame.pack(anchor=tk.W, pady=(10,5))
         ttk.Label(special_frame, text="Spezielle Markierungen:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-        
+
         checkboxes_frame = ttk.Frame(special_frame)
         checkboxes_frame.pack(anchor=tk.W, pady=5)
-        
+
         generl_checkbox = ttk.Checkbutton(checkboxes_frame, text="Generl", 
                                          variable=self.generl_var,
                                          command=self.on_generl_toggle)
         generl_checkbox.pack(side=tk.LEFT, padx=(0,10))
-        
+
         luisa_checkbox = ttk.Checkbutton(checkboxes_frame, text="Luisa", 
                                        variable=self.luisa_var,
                                        command=self.on_luisa_toggle)
         luisa_checkbox.pack(side=tk.LEFT, padx=10)
-        
+
         # Animal species and count fields
         ttk.Label(right_frame, text="Tierarten und Anzahl:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10,5))
-        
+
         # First species
         species_frame1 = ttk.Frame(right_frame)
         species_frame1.pack(anchor=tk.W, fill=tk.X, pady=2)
@@ -292,7 +321,7 @@ DATE: [date in DD.MM.YYYY]"""
         ttk.Label(species_frame1, text="Anzahl:").pack(side=tk.LEFT)
         self.count1_var = tk.StringVar()
         ttk.Entry(species_frame1, textvariable=self.count1_var, width=8).pack(side=tk.LEFT, padx=(5,0))
-        
+
         # Second species
         species_frame2 = ttk.Frame(right_frame)
         species_frame2.pack(anchor=tk.W, fill=tk.X, pady=2)
@@ -302,55 +331,83 @@ DATE: [date in DD.MM.YYYY]"""
         ttk.Label(species_frame2, text="Anzahl:").pack(side=tk.LEFT)
         self.count2_var = tk.StringVar()
         ttk.Entry(species_frame2, textvariable=self.count2_var, width=8).pack(side=tk.LEFT, padx=(5,0))
-        
+
         # Summary field for reference (read-only)
         ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10,0))
         animals_entry = tk.Text(right_frame, height=2, width=40, state='disabled')
         animals_entry.pack(anchor=tk.W)
         self.animals_text = animals_entry
-        
+
         # Bind events to update summary when species/count fields change
         self.species1_var.trace('w', self.update_animals_summary)
         self.count1_var.trace('w', self.update_animals_summary)
         self.species2_var.trace('w', self.update_animals_summary)
         self.count2_var.trace('w', self.update_animals_summary)
-        
+
         # Additional fields for Excel columns
         ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10,0))
         self.aktivitat_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.aktivitat_var, width=30).pack(anchor=tk.W)
-        
+
         ttk.Label(right_frame, text="Interaktion:").pack(anchor=tk.W)
         self.interaktion_var = tk.StringVar()
         ttk.Entry(right_frame, textvariable=self.interaktion_var, width=30).pack(anchor=tk.W)
-        
+
         ttk.Label(right_frame, text="Sonstiges:").pack(anchor=tk.W)
         self.sonstiges_text = tk.Text(right_frame, height=2, width=40)
         self.sonstiges_text.pack(anchor=tk.W)
-        
+
         # Testing mode checkbox
         self.dummy_mode_var = tk.BooleanVar(value=True)  # Default to dummy mode
         dummy_checkbox = ttk.Checkbutton(right_frame, text="Testdaten verwenden (Testmodus)", 
                                        variable=self.dummy_mode_var)
         dummy_checkbox.pack(anchor=tk.W, pady=(10,0))
-        
+
         # Control buttons
         button_frame = ttk.Frame(right_frame)
         button_frame.pack(pady=20)
-        
+
         ttk.Button(button_frame, text="Aktuelles Bild analysieren", 
                   command=self.analyze_current_image).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Bestätigen & Weiter", 
                   command=self.confirm_and_next).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Bild überspringen", 
                   command=self.skip_image).pack(side=tk.LEFT, padx=5)
-        
+
         # Progress info
         self.progress_var = tk.StringVar()
         ttk.Label(right_frame, textvariable=self.progress_var).pack(pady=10)
-        
+
         # Load first image
-        self.load_current_image()
+        # Loading of the current image happens after images list is populated
+        # via self.refresh_image_files()
+
+    def choose_images_folder(self):
+        """Open a folder dialog to choose the images folder and refresh list."""
+        folder = filedialog.askdirectory(title="Wähle Bilder-Ordner")
+        if folder:
+            self.images_folder = folder
+            self.images_folder_var.set(folder)
+            self.refresh_image_files()
+
+    def choose_output_excel(self):
+        """Open a save-as dialog to choose the output Excel file."""
+        path = filedialog.asksaveasfilename(title="Wähle Ausgabe-Excel-Datei",
+                                            defaultextension=".xlsx",
+                                            filetypes=[("Excel Dateien", "*.xlsx"), ("Alle Dateien", "*")])
+        if path:
+            self.output_excel = path
+            self.output_excel_var.set(path)
+
+    def refresh_image_files(self):
+        """Refresh the internal list of image files from the selected folder."""
+        self.image_files = self.get_image_files()
+        self.current_image_index = 0
+        if self.image_files:
+            self.load_current_image()
+        else:
+            self.image_label.config(image='')
+            self.progress_var.set("Keine Bilder im ausgewählten Ordner")
     
     def on_generl_toggle(self):
         """Handle Generl checkbox toggle."""

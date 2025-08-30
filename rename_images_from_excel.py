@@ -1,10 +1,12 @@
 import os
 import pandas as pd
 from collections import defaultdict
+import argparse
+import sys
 
-# --- USER CONFIGURATION ---
-EXCEL_PATH = "/home/jonathan/development/extract_images_outlook/Fotofallendaten_2025.xlsx"  # Set to your Excel file path
-IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"  # Folder with extracted images
+# --- USER CONFIGURATION (defaults) ---
+EXCEL_PATH = "/home/jonathan/development/extract_images_outlook/Fotofallendaten_2025.xlsx"
+IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
 
 def process_animals_from_row(row):
     """Process animal information from Excel row according to new specifications."""
@@ -81,123 +83,143 @@ def convert_date_to_new_format(date_str):
             return str(date_str)
 
 # Read Excel file
-print(f"Reading Excel file: {EXCEL_PATH}")
-try:
-    excel_file = pd.ExcelFile(EXCEL_PATH)
-    print(f"Available sheets: {excel_file.sheet_names}")
-    
-    # Process all sheets
-    all_data = []
-    for sheet_name in excel_file.sheet_names:
-        if sheet_name in ['FP1', 'FP2', 'FP3', 'Nische']:
-            print(f"Reading sheet: {sheet_name}")
-            sheet_data = pd.read_excel(EXCEL_PATH, sheet_name=sheet_name)
-            sheet_data.columns = sheet_data.columns.str.strip()
-            
-            # Add location column based on sheet name
-            sheet_data['Location'] = sheet_name
-            all_data.append(sheet_data)
-    
-    if not all_data:
-        print("No valid sheets found!")
-        exit(1)
-    
-    # Combine all data
-    combined_data = pd.concat(all_data, ignore_index=True)
-    print(f"Total rows across all sheets: {len(combined_data)}")
+def parse_args():
+    p = argparse.ArgumentParser(description='Rename images from Excel workbook')
+    p.add_argument('--excel', '-e', help='Path to Excel file', default=None)
+    p.add_argument('--images', '-i', help='Images folder', default=None)
+    p.add_argument('--dry-run', action='store_true', help='Do not actually rename files, just show actions')
+    return p.parse_args()
 
-except Exception as e:
-    print(f"Error reading Excel file: {e}")
-    exit(1)
 
-# Clean column names and show available columns
-combined_data.columns = combined_data.columns.str.strip()
-print(f"Available columns: {list(combined_data.columns)}")
-
-# Track duplicate names for numbering
-name_counts = defaultdict(int)
-successful_renames = 0
-failed_renames = 0
-
-print(f"\nProcessing {len(combined_data)} rows...")
-
-for idx, row in combined_data.iterrows():
+def main(excel_path, images_folder, dry_run=False):
+    print(f"Reading Excel file: {excel_path}")
     try:
-        # Get basic info
-        nr = None
-        for nr_col in ['Nr.', 'Nr', 'Nr. ']:
-            if nr_col in row and pd.notna(row[nr_col]):
-                nr = row[nr_col]
-                break
-                
-        if nr is None:
-            print(f"Warning: No number column found for row {idx}")
-            continue
-            
-        nr = int(float(nr))  # Handle potential float numbers
-        
-        # Get location from the Location column we added
-        location = row['Location'] if 'Location' in row else None
-        
-        if not location:
-            print(f"Warning: No location found for row {idx}, skipping")
-            continue
-        
-        # Get date
-        date = row['Datum'] if 'Datum' in row else None
-        if pd.isna(date):
-            print(f"Warning: No date found for row {idx}, skipping")
-            continue
-            
-        date_str = convert_date_to_new_format(date)
-        
-        # Get special names (Generl, Luisa)
-        special_names = get_special_names_from_row(row)
-        special_str = "_".join(special_names) if special_names else ""
-        
-        # Get animals
-        animals = process_animals_from_row(row)
-        animal_str = "_".join(animals) if animals else "Unknown"
-        
-        # Build new filename: location_NRNR_MM.DD.YY_[Generl_][Luisa_]Animal_count.jpeg
-        if special_str:
-            new_name = f"{location}_{nr:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
-        else:
-            new_name = f"{location}_{nr:04d}_{date_str}_{animal_str}.jpeg"
-        
-        # Handle duplicates
-        base_name = new_name[:-5]  # Remove .jpeg
-        name_counts[base_name] += 1
-        if name_counts[base_name] > 1:
-            new_name = f"{base_name}_{name_counts[base_name]}.jpeg"
-        
-        # Find and rename the image file
-        old_name = f"fotofallen_2025_{nr}.jpeg"
-        old_path = os.path.join(IMAGES_FOLDER, old_name)
-        
-        if not os.path.exists(old_path):
-            print(f"Image not found: {old_path}")
-            failed_renames += 1
-            continue
-            
-        new_path = os.path.join(IMAGES_FOLDER, new_name)
-        
-        # Create backup if needed
-        if os.path.exists(new_path):
-            print(f"Warning: Target file already exists: {new_name}")
-            failed_renames += 1
-            continue
-            
-        os.rename(old_path, new_path)
-        print(f"✅ Renamed: {old_name} -> {new_name}")
-        successful_renames += 1
-        
-    except Exception as e:
-        print(f"Error processing row {idx}: {e}")
-        failed_renames += 1
-        continue
+        excel_file = pd.ExcelFile(excel_path)
+        print(f"Available sheets: {excel_file.sheet_names}")
 
-print("\n🎉 Renaming complete!")
-print(f"✅ Successful renames: {successful_renames}")
-print(f"❌ Failed renames: {failed_renames}")
-print(f"📊 Total processed: {successful_renames + failed_renames}")
+        # Process all sheets
+        all_data = []
+        for sheet_name in excel_file.sheet_names:
+            if sheet_name in ['FP1', 'FP2', 'FP3', 'Nische']:
+                print(f"Reading sheet: {sheet_name}")
+                sheet_data = pd.read_excel(excel_path, sheet_name=sheet_name)
+                sheet_data.columns = sheet_data.columns.str.strip()
+
+                # Add location column based on sheet name
+                sheet_data['Location'] = sheet_name
+                all_data.append(sheet_data)
+
+        if not all_data:
+            print("No valid sheets found!")
+            return 1
+
+        # Combine all data
+        combined_data = pd.concat(all_data, ignore_index=True)
+        print(f"Total rows across all sheets: {len(combined_data)}")
+
+    except Exception as e:
+        print(f"Error reading Excel file: {e}")
+        return 1
+
+    # Clean column names and show available columns
+    combined_data.columns = combined_data.columns.str.strip()
+    print(f"Available columns: {list(combined_data.columns)}")
+
+    # Track duplicate names for numbering
+    name_counts = defaultdict(int)
+    successful_renames = 0
+    failed_renames = 0
+
+    print(f"\nProcessing {len(combined_data)} rows...")
+
+    for idx, row in combined_data.iterrows():
+        try:
+            # Get basic info
+            nr = None
+            for nr_col in ['Nr.', 'Nr', 'Nr. ']:
+                if nr_col in row and pd.notna(row[nr_col]):
+                    nr = row[nr_col]
+                    break
+
+            if nr is None:
+                print(f"Warning: No number column found for row {idx}")
+                continue
+
+            nr = int(float(nr))  # Handle potential float numbers
+
+            # Get location from the Location column we added
+            location = row['Location'] if 'Location' in row else None
+
+            if not location:
+                print(f"Warning: No location found for row {idx}, skipping")
+                continue
+
+            # Get date
+            date = row['Datum'] if 'Datum' in row else None
+            if pd.isna(date):
+                print(f"Warning: No date found for row {idx}, skipping")
+                continue
+
+            date_str = convert_date_to_new_format(date)
+
+            # Get special names (Generl, Luisa)
+            special_names = get_special_names_from_row(row)
+            special_str = "_".join(special_names) if special_names else ""
+
+            # Get animals
+            animals = process_animals_from_row(row)
+            animal_str = "_".join(animals) if animals else "Unknown"
+
+            # Build new filename: location_NRNR_MM.DD.YY_[Generl_][Luisa_]Animal_count.jpeg
+            if special_str:
+                new_name = f"{location}_{nr:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
+            else:
+                new_name = f"{location}_{nr:04d}_{date_str}_{animal_str}.jpeg"
+
+            # Handle duplicates
+            base_name = new_name[:-5]  # Remove .jpeg
+            name_counts[base_name] += 1
+            if name_counts[base_name] > 1:
+                new_name = f"{base_name}_{name_counts[base_name]}.jpeg"
+
+            # Find and rename the image file
+            old_name = f"fotofallen_2025_{nr}.jpeg"
+            old_path = os.path.join(images_folder, old_name)
+
+            if not os.path.exists(old_path):
+                print(f"Image not found: {old_path}")
+                failed_renames += 1
+                continue
+
+            new_path = os.path.join(images_folder, new_name)
+
+            # Create backup if needed
+            if os.path.exists(new_path):
+                print(f"Warning: Target file already exists: {new_name}")
+                failed_renames += 1
+                continue
+
+            if dry_run:
+                print(f"DRY RUN: Would rename: {old_name} -> {new_name}")
+            else:
+                os.rename(old_path, new_path)
+                print(f"\u2705 Renamed: {old_name} -> {new_name}")
+            successful_renames += 1
+
+        except Exception as e:
+            print(f"Error processing row {idx}: {e}")
+            failed_renames += 1
+            continue
+
+    print("\n\ud83c\udf89 Renaming complete!")
+    print(f"\u2705 Successful renames: {successful_renames}")
+    print(f"\u274c Failed renames: {failed_renames}")
+    print(f"\ud83d\udcca Total processed: {successful_renames + failed_renames}")
+    return 0
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    excel = args.excel if args.excel else EXCEL_PATH
+    images = args.images if args.images else IMAGES_FOLDER
+    sys.exit(main(excel, images, dry_run=args.dry_run))

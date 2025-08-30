@@ -20,17 +20,21 @@ import os
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk, messagebox
+import argparse
+import sys
 from PIL import Image, ImageTk
 import base64
 import requests
-import re
 import shutil
+import os
+import pandas as pd
+import re
 from collections import defaultdict
 
 # --- BENUTZER KONFIGURATION ---
-IMAGES_FOLDER = "/home/jonathan/Downloads/2025_extracted_images"
-OUTPUT_EXCEL = "/home/jonathan/development/extract_images_outlook/analyzed_images.xlsx"
-GITHUB_TOKEN = "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"  # Von https://github.com/settings/tokens
+IMAGES_FOLDER = os.environ.get('ANALYZER_IMAGES_FOLDER', "/home/jonathan/Downloads/2025_extracted_images")
+OUTPUT_EXCEL = os.environ.get('ANALYZER_OUTPUT_EXCEL', "/home/jonathan/development/extract_images_outlook/analyzed_images.xlsx")
+GITHUB_TOKEN = os.environ.get('GITHUB_MODELS_TOKEN', '')  # Read from environment by default
 START_FROM_IMAGE = 1
 
 # GitHub Models API endpoint
@@ -940,21 +944,21 @@ DATE: [date in DD.MM.YYYY]"""
         """Start the GUI application."""
         self.root.mainloop()
 
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument('--no-gui', action='store_true', help='Run a basic check without launching the GUI')
+    return p.parse_args()
+
+
 if __name__ == "__main__":
-    # Check if GitHub token is set
-    if GITHUB_TOKEN == "your-github-token-here":
-        print("Bitte setzen Sie Ihr GitHub Token in der GITHUB_TOKEN Variable.")
-        print("Token erhalten von: https://github.com/settings/tokens")
-        print("Stellen Sie sicher, dass Sie die 'Models' Berechtigung aktivieren.")
-        exit(1)
-    
-    print("GitHub Models Kamerafallen-Analyzer")
-    print("=" * 40)
-    print("Bei 401-Fehler:")
-    print("1. Gehe zu https://github.com/settings/tokens")
-    print("2. Erstelle ein neues Token mit 'Models' Berechtigung")
-    print("3. Aktualisiere GITHUB_TOKEN in diesem Skript")
-    print("=" * 40)
-    
+    args = parse_args()
+
+    if not GITHUB_TOKEN:
+        print("Warning: GITHUB_MODELS_TOKEN environment variable not set. Set it to enable GitHub Models API calls.")
+
+    if args.no_gui:
+        print("Headless check: token present:" , bool(GITHUB_TOKEN))
+        sys.exit(0)
+
     analyzer = ImageAnalyzer()
     analyzer.run()

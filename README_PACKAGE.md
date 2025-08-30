@@ -29,5 +29,15 @@ Quick packaging tips (create a self-contained executable without Python installe
    - The analyzer uses a GitHub Models API token; configure `GITHUB_TOKEN` inside `github_models_analyzer_current_broken.py` or provide it via env var and modify script to read env var.
    - Large Excel workbooks and image folders will increase memory usage; test on a representative machine before wide distribution.
 
+   Security and local configuration
+   --------------------------------
+
+   - A sample env file is provided as `.env.example`. Copy it to `.env` and fill in `GITHUB_MODELS_TOKEN`:
+
+      1. cp .env.example .env
+      2. Edit `.env` and set GITHUB_MODELS_TOKEN to your personal token (do not commit `.env`).
+
+   - `.env` is already ignored by `.gitignore` in this repository to prevent accidental commits of secrets.
+
 4) Testing the packaged app:
    - The extracted executable will run the launcher GUI. The analyzer is launched in a separate process and still requires a working Python environment (unless you package the analyzer script as well).
