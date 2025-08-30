@@ -24,6 +24,8 @@ from PIL import Image, ImageTk
 import base64
 import requests
 import re
+import argparse
+import sys
 
 # --- BENUTZER KONFIGURATION ---
 # Defaults can be overridden via environment variables
@@ -431,20 +433,25 @@ DATE: [date in DD.MM.YYYY]"""
             return
             
         image_file = self.image_files[self.current_image_index]
-        image_path = os.path.join(IMAGES_FOLDER, image_file)
-        
+        images_folder = self.images_folder or IMAGES_FOLDER
+        image_path = os.path.join(images_folder, image_file)
+
         # Load and resize image for display
-        image = Image.open(image_path)
-        image.thumbnail((500, 400))
-        photo = ImageTk.PhotoImage(image)
-        
-        self.image_label.configure(image=photo)
-        self.image_label.image = photo  # Keep a reference
-        
+        try:
+            image = Image.open(image_path)
+            image.thumbnail((500, 400))
+            photo = ImageTk.PhotoImage(image)
+
+            self.image_label.configure(image=photo)
+            self.image_label.image = photo  # Keep a reference
+        except Exception as e:
+            print(f"Fehler beim Laden des Bildes {image_path}: {e}")
+            self.image_label.configure(image='')
+
         # Update progress
         progress = f"Image {self.current_image_index + 1} of {len(self.image_files)}: {image_file}"
         self.progress_var.set(progress)
-        
+
         # Clear form
         self.clear_fields()
         
@@ -572,25 +579,50 @@ DATE: [date in DD.MM.YYYY]"""
     def analyze_with_ai(self):
         """Analyze the current image with GitHub Models API."""
         image_file = self.image_files[self.current_image_index]
-        image_path = os.path.join(IMAGES_FOLDER, image_file)
-        
+        images_folder = self.images_folder or IMAGES_FOLDER
+        image_path = os.path.join(images_folder, image_file)
+
         # Show analysis in progress
         self.animals_text.config(state='normal')
         self.animals_text.delete(1.0, tk.END)
         self.animals_text.insert(1.0, "Analysiere mit KI...")
         self.animals_text.config(state='disabled')
         self.root.update()
-        
+
         # Analyze with GitHub Models
-        animals, location, time_str, date_str = self.analyze_with_github_models(image_path)
-        
+        try:
+            animals, location, time_str, date_str = self.analyze_with_github_models(image_path)
+        except Exception as e:
+            print(f"Fehler bei KI-Analyse: {e}")
+            animals, location, time_str, date_str = "", "", "", ""
+
         # Fill in the form
         self.location_var.set(location)
         self.time_var.set(time_str)
         self.date_var.set(date_str)
-        
+
         # Parse animals string and populate species fields
         self.parse_animals_to_species(animals)
+
+    def refresh_image_list(self):
+        """Refresh the image file list (used after renaming files)."""
+        try:
+            images_folder = self.images_folder or IMAGES_FOLDER
+            all_files = os.listdir(images_folder)
+            image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png')) \
+                          and not f.startswith('.') and 'backup' not in f.lower()]
+            image_files.sort()
+
+            # Try to maintain current file selection
+            old_current_file = self.image_files[self.current_image_index] if self.current_image_index < len(self.image_files) else None
+            self.image_files = image_files
+
+            if old_current_file and old_current_file in self.image_files:
+                self.current_image_index = self.image_files.index(old_current_file)
+            elif self.current_image_index >= len(self.image_files):
+                self.current_image_index = max(0, len(self.image_files) - 1)
+        except Exception as e:
+            print(f"Fehler beim Aktualisieren der Bilderliste: {e}")
     
     def parse_animals_to_species(self, animals_text):
         """Parse the animals description and populate species/count fields."""
@@ -608,7 +640,6 @@ DATE: [date in DD.MM.YYYY]"""
         
         for i, part in enumerate(species_parts[:2]):  # Only handle first two species
             # Try to extract count and species from patterns like "2 Ravens", "1 Fox"
-            import re
             match = re.match(r'(\d+)\s+(.+)', part.strip())
             if match:
                 count = match.group(1)
@@ -627,17 +658,13 @@ DATE: [date in DD.MM.YYYY]"""
                 self.count2_var.set(count)
     
     def confirm_and_next(self):
-        """Save current data and move to next image."""
+        """Save current data and move to next image. Includes renaming and sequential IDs."""
         if not self.image_files:
             return
-            
+
         # Get the current image filename
         image_file = self.image_files[self.current_image_index]
-        
-        # Extract number from filename (e.g., "fotofallen_2025_123.jpg" -> 123)
-        number_match = re.search(r'fotofallen_2025_(\d+)', image_file)
-        image_number = number_match.group(1) if number_match else ""
-        
+
         # Get the analyzed data
         location = self.location_var.get()
         date = self.date_var.get()
@@ -646,55 +673,76 @@ DATE: [date in DD.MM.YYYY]"""
         aktivitat = self.aktivitat_var.get()
         interaktion = self.interaktion_var.get()
         sonstiges = self.sonstiges_text.get(1.0, tk.END).strip()
-        
+
         # Get species and count data
         species1 = self.species1_var.get().strip()
         count1 = self.count1_var.get().strip()
         species2 = self.species2_var.get().strip()
         count2 = self.count2_var.get().strip()
-        
+
         # Get Generl and Luisa values
         generl_checked = self.generl_var.get()
         luisa_checked = self.luisa_var.get()
-        
-        # Prepare Excel row data according to existing spreadsheet structure
+
+        # Validate required fields
+        if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
+            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)")
+            return
+
+        if not date:
+            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein")
+            return
+
+        # Determine next sequential ID for this location
+        new_id = self.get_next_id_for_location(location)
+
+        # Rename the image and create a backup
+        new_image_name = self.create_backup_and_rename_image(
+            image_file, location, date, species1, count1, species2, count2, new_id, generl_checked, luisa_checked
+        )
+
+        if new_image_name is None:
+            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes. Eintrag wird trotzdem gespeichert.")
+            new_image_name = image_file
+
+        # Prepare Excel row data with new sequential ID
         data = {
-            'Nr. ': image_number,  # Number from filename (note the space)
-            'Standort': location,  # Location (FP1/FP2/FP3/Nische)
-            'Datum': date,  # Date
-            'Uhrzeit': time,  # Time
-            'Dagmar': '',  # Empty field as in original structure
-            'Recka': '',   # Empty field as in original structure
-            'Unbestimmt': 'Bg' if 'Bartgeier' in animals else '',  # "Bg" for Bearded Vultures
-            'Aktivität': aktivitat,  # Activity column (full German spelling)
-            'Art 1': species1,  # Species 1
-            'Anzahl 1': count1,  # Count 1
-            'Art 2': species2,  # Species 2
-            'Anzahl 2': count2,  # Count 2
-            'Interaktion': interaktion,  # Interaction
-            'Sonstiges': sonstiges,  # Other
-            'General': 'X' if generl_checked else '',  # General column
-            'Luisa': 'X' if luisa_checked else '',  # Luisa column
-            'Korrektur': '',  # Correction field (empty for now)
-            'animals_detected': animals,  # Keep for reference
-            'filename': image_file  # Keep filename for reference
+            'Nr. ': new_id,
+            'Standort': location,
+            'Datum': date,
+            'Uhrzeit': time,
+            'Dagmar': '',
+            'Recka': '',
+            'Unbestimmt': 'Bg' if 'Bartgeier' in animals else '',
+            'Aktivität': aktivitat,
+            'Art 1': species1,
+            'Anzahl 1': count1,
+            'Art 2': species2,
+            'Anzahl 2': count2,
+            'Interaktion': interaktion,
+            'Sonstiges': sonstiges,
+            'General': 'X' if generl_checked else '',
+            'Luisa': 'X' if luisa_checked else '',
+            'Korrektur': '',
+            'animals_detected': animals,
+            'filename': new_image_name,
+            'original_filename': image_file
         }
-        
-        # Add to results
+
+        # Add to results and save
         self.results.append(data)
-        print(f"Daten gespeichert für Bild {image_number}: {location}, {date}, {time}")
-        
-        # Immediately save this entry to Excel
+        print(f"Daten gespeichert für Bild {new_id}: {location}, {date}, {time}")
         self.save_single_result(data)
-        
-        # Move to next image
+
+        # Move to next image and refresh list
         if self.current_image_index < len(self.image_files) - 1:
             self.current_image_index += 1
+            self.refresh_image_list()
             self.load_current_image()
         else:
-            # Save results when done with all images
             self.save_results()
-            messagebox.showinfo("Complete", f"Analysis complete! Results saved to {OUTPUT_EXCEL}")
+            out = self.output_excel or OUTPUT_EXCEL
+            messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {out}")
     
     def skip_image(self):
         """Skip current image without saving data."""
@@ -830,20 +878,16 @@ DATE: [date in DD.MM.YYYY]"""
         self.root.mainloop()
 
 if __name__ == "__main__":
-    # Check if GitHub token is set
-    if GITHUB_TOKEN == "your-github-token-here":
-        print("Bitte setzen Sie Ihr GitHub Token in der GITHUB_TOKEN Variable.")
-        print("Token erhalten von: https://github.com/settings/tokens")
-        print("Stellen Sie sicher, dass Sie die 'Models' Berechtigung aktivieren.")
-        exit(1)
-    
-    print("GitHub Models Kamerafallen-Analyzer")
-    print("=" * 40)
-    print("Bei 401-Fehler:")
-    print("1. Gehe zu https://github.com/settings/tokens")
-    print("2. Erstelle ein neues Token mit 'Models' Berechtigung")
-    print("3. Aktualisiere GITHUB_TOKEN in diesem Skript")
-    print("=" * 40)
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no-gui', action='store_true', help='Run a quick headless check')
+    args = parser.parse_args()
+
+    if not GITHUB_TOKEN:
+        print("Warning: GITHUB_MODELS_TOKEN environment variable not set. Set it to enable GitHub Models API calls.")
+
+    if args.no_gui:
+        print("Headless check: token present:", bool(GITHUB_TOKEN))
+        sys.exit(0)
+
     analyzer = ImageAnalyzer()
     analyzer.run()
