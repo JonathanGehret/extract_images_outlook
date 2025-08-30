@@ -23,6 +23,13 @@ from PIL import Image, ImageTk, ImageDraw
 import github_models_api as gm_api
 import github_models_io as gm_io
 
+# Try to load .env file if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not available, continue without it
+
 # Configuration (can be overridden by env)
 IMAGES_FOLDER = os.environ.get("ANALYZER_IMAGES_FOLDER", "")
 OUTPUT_EXCEL = os.environ.get("ANALYZER_OUTPUT_EXCEL", "")
