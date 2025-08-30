@@ -234,8 +234,14 @@ class Launcher(tk.Tk):
         ExtractWindow(self)
 
     def open_analyzer(self):
-        # Show a small dialog to collect optional token and paths, then launch analyzer with env
-        analyzer_script = os.path.join(os.path.dirname(__file__), 'github_models_analyzer.py')
+        # Handle both packaged and development environments
+        if hasattr(sys, '_MEIPASS'):
+            # Running from PyInstaller bundle
+            analyzer_script = os.path.join(sys._MEIPASS, 'github_models_analyzer.py')
+        else:
+            # Running from source
+            analyzer_script = os.path.join(os.path.dirname(__file__), 'github_models_analyzer.py')
+        
         if not os.path.exists(analyzer_script):
             messagebox.showerror('Fehler', f'Analyzer-Skript nicht gefunden: {analyzer_script}', parent=self)
             return
@@ -362,8 +368,26 @@ class Launcher(tk.Tk):
             if out_var.get().strip():
                 env['ANALYZER_OUTPUT_EXCEL'] = out_var.get().strip()
 
-            subprocess.Popen([sys.executable, analyzer_script], cwd=os.path.dirname(__file__), env=env)
-            messagebox.showinfo('Gestartet', 'Analyzer in separatem Prozess gestartet', parent=dlg)
+            # Launch analyzer - handle both packaged and development environments
+            if hasattr(sys, '_MEIPASS'):
+                # In packaged executable, import and run directly
+                try:
+                    # Set environment variables before importing
+                    for key, value in env.items():
+                        os.environ[key] = value
+                    
+                    # Import and run analyzer directly
+                    import github_models_analyzer
+                    analyzer = github_models_analyzer.CameraTrapAnalyzer()
+                    threading.Thread(target=analyzer.run, daemon=True).start()
+                    messagebox.showinfo('Gestartet', 'Analyzer wurde gestartet', parent=dlg)
+                except Exception as e:
+                    messagebox.showerror('Fehler', f'Fehler beim Starten des Analyzers: {e}', parent=dlg)
+            else:
+                # In development, use subprocess as before
+                subprocess.Popen([sys.executable, analyzer_script], cwd=os.path.dirname(__file__), env=env)
+                messagebox.showinfo('Gestartet', 'Analyzer in separatem Prozess gestartet', parent=dlg)
+            
             dlg.destroy()
 
         btns = ttk.Frame(frm)

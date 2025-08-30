@@ -33,6 +33,13 @@ PIPFILE.lock
 *.manifest
 *.spec
 
+# Packaging artifacts
+KamerafallenTools-*/
+*-linux.zip
+*-windows.zip
+build_*.sh
+build_*.bat
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
