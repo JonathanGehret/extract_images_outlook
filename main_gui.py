@@ -378,7 +378,7 @@ class Launcher(tk.Tk):
                     
                     # Import and run analyzer directly
                     import github_models_analyzer
-                    analyzer = github_models_analyzer.CameraTrapAnalyzer()
+                    analyzer = github_models_analyzer.ImageAnalyzer()
                     threading.Thread(target=analyzer.run, daemon=True).start()
                     messagebox.showinfo('Gestartet', 'Analyzer wurde gestartet', parent=dlg)
                 except Exception as e:
