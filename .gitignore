@@ -37,8 +37,10 @@ PIPFILE.lock
 KamerafallenTools-*/
 *-linux.zip
 *-windows.zip
+*-windows/
 build_*.sh
 build_*.bat
+*.spec
 
 # Installer logs
 pip-log.txt
