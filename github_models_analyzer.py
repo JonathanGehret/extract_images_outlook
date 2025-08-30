@@ -104,7 +104,7 @@ class ImageAnalyzer:
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Left - image
-        ttk.Label(left_frame, text="Image", font=("Arial", 14)).pack()
+        ttk.Label(left_frame, text="Bild", font=("Arial", 14)).pack()
         self.image_label = ttk.Label(left_frame)
         self.image_label.pack(pady=10)
 
@@ -610,7 +610,7 @@ class ImageAnalyzer:
                 short_year = year[-2:] if len(year) == 4 else year
                 return f"{month.zfill(2)}.{day.zfill(2)}.{short_year}"
             else:
-                print(f"Warning: Unrecognized date format: {date_str}")
+                print(f"Warnung: Unerkanntes Datumsformat: {date_str}")
                 return str(date_str)
 
     def _process_animals_for_filename(self, species1, count1, species2, count2):
@@ -654,10 +654,10 @@ class ImageAnalyzer:
         new_path = os.path.join(images_folder, new_filename)
         
         if not os.path.exists(old_path):
-            raise FileNotFoundError(f"Original file not found: {old_filename}")
+            raise FileNotFoundError(f"Original-Datei nicht gefunden: {old_filename}")
             
         if os.path.exists(new_path):
-            raise FileExistsError(f"Target file already exists: {new_filename}")
+            raise FileExistsError(f"Ziel-Datei existiert bereits: {new_filename}")
             
         # Create backup directory if it doesn't exist
         backup_dir = os.path.join(images_folder, "backup_originals")
@@ -781,14 +781,14 @@ class ImageAnalyzer:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--no-gui', action='store_true', help='Run a quick headless check')
+    parser.add_argument('--no-gui', action='store_true', help='Schneller Test ohne GUI ausführen')
     args = parser.parse_args()
 
     if not GITHUB_TOKEN:
-        print("Warning: GITHUB_MODELS_TOKEN environment variable not set. Set it to enable GitHub Models API calls.")
+        print("Warnung: GITHUB_MODELS_TOKEN Umgebungsvariable nicht gesetzt. Setzen Sie diese, um GitHub Models API-Aufrufe zu aktivieren.")
 
     if args.no_gui:
-        print("Headless check: token present:", bool(GITHUB_TOKEN))
+        print("Test ohne GUI: Token vorhanden:", bool(GITHUB_TOKEN))
         sys.exit(0)
 
     analyzer = ImageAnalyzer()

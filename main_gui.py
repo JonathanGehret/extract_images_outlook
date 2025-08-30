@@ -29,7 +29,7 @@ def extract_msg_files(input_folder, output_folder, name_pattern="fotofallen_2025
     try:
         import extract_msg
     except Exception:
-        raise RuntimeError("Missing dependency 'extract_msg'. Install with: pip install extract_msg")
+        raise RuntimeError("Fehlende Abhängigkeit 'extract_msg'. Installieren mit: pip install extract_msg")
 
     os.makedirs(output_folder, exist_ok=True)
     processed = 0
@@ -72,7 +72,7 @@ def extract_msg_files(input_folder, output_folder, name_pattern="fotofallen_2025
 class ExtractWindow(tk.Toplevel):
     def __init__(self, master=None):
         super().__init__(master)
-        self.title('Extract images from email (.msg)')
+        self.title('Bilder aus E-Mail extrahieren (.msg)')
         self.geometry('700x320')
         self.minsize(600, 280)
 
@@ -92,25 +92,25 @@ class ExtractWindow(tk.Toplevel):
         frame = ttk.Frame(self, padding=12)
         frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(frame, text='Input .msg folder:').grid(row=0, column=0, sticky='w')
+        ttk.Label(frame, text='Eingabe .msg-Ordner:').grid(row=0, column=0, sticky='w')
         input_entry = ttk.Entry(frame, textvariable=self.input_var, state='readonly')
         input_entry.grid(row=0, column=1, sticky='ew', padx=(5, 10))
         if self.folder_icon:
             ttk.Button(frame, image=self.folder_icon, command=self.browse_input).grid(row=0, column=2, padx=6)
         else:
-            ttk.Button(frame, text='Browse', command=self.browse_input).grid(row=0, column=2, padx=6)
+            ttk.Button(frame, text='Durchsuchen', command=self.browse_input).grid(row=0, column=2, padx=6)
 
-        ttk.Label(frame, text='Output images folder:').grid(row=1, column=0, sticky='w')
+        ttk.Label(frame, text='Ausgabe-Bilder-Ordner:').grid(row=1, column=0, sticky='w')
         output_entry = ttk.Entry(frame, textvariable=self.output_var, state='readonly')
         output_entry.grid(row=1, column=1, sticky='ew', padx=(5, 10))
         if self.folder_icon:
             ttk.Button(frame, image=self.folder_icon, command=self.browse_output).grid(row=1, column=2, padx=6)
         else:
-            ttk.Button(frame, text='Browse', command=self.browse_output).grid(row=1, column=2, padx=6)
+            ttk.Button(frame, text='Durchsuchen', command=self.browse_output).grid(row=1, column=2, padx=6)
 
-        ttk.Label(frame, text='Filename pattern:').grid(row=2, column=0, sticky='w')
+        ttk.Label(frame, text='Dateiname-Muster:').grid(row=2, column=0, sticky='w')
         ttk.Entry(frame, textvariable=self.pattern_var).grid(row=2, column=1, sticky='ew', padx=(5, 10))
-        ttk.Label(frame, text='Use {num} and {idx} placeholders').grid(row=2, column=2, sticky='w')
+        ttk.Label(frame, text='Verwende {num} und {idx} Platzhalter').grid(row=2, column=2, sticky='w')
 
         # Configure column weights for expansion
         frame.columnconfigure(1, weight=1)
@@ -120,8 +120,8 @@ class ExtractWindow(tk.Toplevel):
 
         btn_frame = ttk.Frame(frame)
         btn_frame.grid(row=5, column=0, columnspan=3, pady=8)
-        ttk.Button(btn_frame, text='Run Extraction', command=self.run_extraction).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btn_frame, text='Close', command=self.destroy).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btn_frame, text='Extraktion ausführen', command=self.run_extraction).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btn_frame, text='Schließen', command=self.destroy).pack(side=tk.LEFT, padx=6)
 
         # Configure grid weights
         frame.rowconfigure(4, weight=1)
@@ -151,7 +151,7 @@ class ExtractWindow(tk.Toplevel):
         self._dialog_open = True
         try:
             self._bring_window_to_front()
-            path = filedialog.askdirectory(parent=self, title="Select folder containing .msg files")
+            path = filedialog.askdirectory(parent=self, title="Ordner mit .msg-Dateien auswählen")
         finally:
             try:
                 self.attributes('-topmost', False)
@@ -168,7 +168,7 @@ class ExtractWindow(tk.Toplevel):
         self._dialog_open = True
         try:
             self._bring_window_to_front()
-            path = filedialog.askdirectory(parent=self, title="Select output folder for extracted images")
+            path = filedialog.askdirectory(parent=self, title="Ausgabeordner für extrahierte Bilder auswählen")
         finally:
             try:
                 self.attributes('-topmost', False)
@@ -185,49 +185,49 @@ class ExtractWindow(tk.Toplevel):
         pattern = self.pattern_var.get().strip()
 
         if not input_folder or not os.path.isdir(input_folder):
-            messagebox.showerror('Error', 'Please select a valid input folder', parent=self)
+            messagebox.showerror('Fehler', 'Bitte wählen Sie einen gültigen Eingabeordner aus', parent=self)
             return
         if not output_folder:
-            messagebox.showerror('Error', 'Please select an output folder', parent=self)
+            messagebox.showerror('Fehler', 'Bitte wählen Sie einen Ausgabeordner aus', parent=self)
             return
 
-        self.log.insert(tk.END, f'Extracting from: {input_folder}\n')
-        self.log.insert(tk.END, f'Writing to: {output_folder}\n')
+        self.log.insert(tk.END, f'Extrahiere aus: {input_folder}\n')
+        self.log.insert(tk.END, f'Schreibe in: {output_folder}\n')
         self.update()
 
         try:
             processed, errors = extract_msg_files(input_folder, output_folder, name_pattern=pattern)
-            self.log.insert(tk.END, f'Processed: {processed} attachments\n')
+            self.log.insert(tk.END, f'Verarbeitet: {processed} Anhänge\n')
             if errors:
-                self.log.insert(tk.END, f'Errors: {len(errors)}\n')
+                self.log.insert(tk.END, f'Fehler: {len(errors)}\n')
                 for fn, err in errors[:10]:
                     self.log.insert(tk.END, f' - {fn}: {err}\n')
             else:
-                self.log.insert(tk.END, 'No extraction errors.\n')
+                self.log.insert(tk.END, 'Keine Extraktionsfehler.\n')
         except Exception as e:
-            self.log.insert(tk.END, f'Failed: {e}\n')
-            messagebox.showerror('Error', str(e), parent=self)
+            self.log.insert(tk.END, f'Fehlgeschlagen: {e}\n')
+            messagebox.showerror('Fehler', str(e), parent=self)
 
 
 class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Camera Trap Tools Launcher')
+        self.title('Kamerafallen-Tools Starter')
         self.geometry('520x240')
 
         frame = ttk.Frame(self, padding=20)
         frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(frame, text='Camera Trap Tools', font=('Arial', 16, 'bold')).pack(pady=(0,10))
+        ttk.Label(frame, text='Kamerafallen-Tools', font=('Arial', 16, 'bold')).pack(pady=(0,10))
 
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(pady=10)
 
-        ttk.Button(btn_frame, text='Open: Extract images from email', width=36, command=self.open_extract).grid(row=0, column=0, pady=6)
-        ttk.Button(btn_frame, text='Open: GitHub Models Analyzer', width=36, command=self.open_analyzer).grid(row=1, column=0, pady=6)
-        ttk.Button(btn_frame, text='Run: Rename images from Excel', width=36, command=self.run_renamer_dialog).grid(row=2, column=0, pady=6)
+        ttk.Button(btn_frame, text='Öffnen: Bilder aus E-Mail extrahieren', width=36, command=self.open_extract).grid(row=0, column=0, pady=6)
+        ttk.Button(btn_frame, text='Öffnen: GitHub Models Analyzer', width=36, command=self.open_analyzer).grid(row=1, column=0, pady=6)
+        ttk.Button(btn_frame, text='Ausführen: Bilder aus Excel umbenennen', width=36, command=self.run_renamer_dialog).grid(row=2, column=0, pady=6)
 
-        info = ttk.Label(frame, text='Analyzer launches as a separate process. Renamer will run with chosen Excel/images paths.')
+        info = ttk.Label(frame, text='Analyzer startet als separater Prozess. Renamer läuft mit gewählten Excel/Bilder-Pfaden.')
         info.pack(pady=(10,0))
 
     def open_extract(self):
@@ -237,11 +237,11 @@ class Launcher(tk.Tk):
         # Show a small dialog to collect optional token and paths, then launch analyzer with env
         analyzer_script = os.path.join(os.path.dirname(__file__), 'github_models_analyzer.py')
         if not os.path.exists(analyzer_script):
-            messagebox.showerror('Error', f'Analyzer script not found: {analyzer_script}', parent=self)
+            messagebox.showerror('Fehler', f'Analyzer-Skript nicht gefunden: {analyzer_script}', parent=self)
             return
 
         dlg = tk.Toplevel(self)
-        dlg.title('Launch Analyzer - Options')
+        dlg.title('Analyzer starten - Optionen')
         dlg.geometry('620x220')
         dlg.minsize(500, 180)
 
@@ -277,7 +277,7 @@ class Launcher(tk.Tk):
             dlg._dialog_open = True
             try:
                 bring_dlg_to_front()
-                path = filedialog.askdirectory(parent=dlg, title="Select images folder")
+                path = filedialog.askdirectory(parent=dlg, title="Bilder-Ordner auswählen")
             finally:
                 try:
                     dlg.attributes('-topmost', False)
@@ -294,7 +294,7 @@ class Launcher(tk.Tk):
             dlg._dialog_open = True
             try:
                 bring_dlg_to_front()
-                path = filedialog.asksaveasfilename(parent=dlg, title="Select output Excel file",
+                path = filedialog.asksaveasfilename(parent=dlg, title="Ausgabe-Excel-Datei auswählen",
                                                     defaultextension='.xlsx', 
                                                     filetypes=[('Excel','*.xlsx')])
             finally:
@@ -315,7 +315,7 @@ class Launcher(tk.Tk):
         token_frame.grid(row=0, column=0, columnspan=3, sticky='ew', pady=(0, 5))
         token_frame.columnconfigure(1, weight=1)
         
-        ttk.Label(token_frame, text='GitHub Models Token (auto-filled from env):').grid(row=0, column=0, sticky='w')
+        ttk.Label(token_frame, text='GitHub Models Token (automatisch aus env geladen):').grid(row=0, column=0, sticky='w')
         
         show_token_var = tk.BooleanVar()
         token_entry = ttk.Entry(token_frame, textvariable=token_var)
@@ -331,24 +331,24 @@ class Launcher(tk.Tk):
         if current_token:
             token_entry.config(show='*')
             # Add status label
-            status_text = f"✓ Token loaded from environment ({len(current_token)} chars)"
+            status_text = f"✓ Token aus Umgebung geladen ({len(current_token)} Zeichen)"
             ttk.Label(token_frame, text=status_text, foreground='green', font=('Arial', 8)).grid(row=1, column=1, sticky='w', padx=(5, 0))
         else:
             show_token_var.set(True)  # Show empty field by default
-            ttk.Label(token_frame, text="⚠ No token found in environment", foreground='orange', font=('Arial', 8)).grid(row=1, column=1, sticky='w', padx=(5, 0))
+            ttk.Label(token_frame, text="⚠ Kein Token in Umgebung gefunden", foreground='orange', font=('Arial', 8)).grid(row=1, column=1, sticky='w', padx=(5, 0))
             
-        ttk.Checkbutton(token_frame, text='Show', variable=show_token_var, 
+        ttk.Checkbutton(token_frame, text='Anzeigen', variable=show_token_var, 
                        command=toggle_token_visibility).grid(row=0, column=2, padx=6)
         
-        ttk.Label(frm, text='Images folder (auto-filled from env):').grid(row=1, column=0, sticky='w')
+        ttk.Label(frm, text='Bilder-Ordner (automatisch aus env geladen):').grid(row=1, column=0, sticky='w')
         images_entry = ttk.Entry(frm, textvariable=images_var, state='readonly')
         images_entry.grid(row=1, column=1, sticky='ew', padx=(5, 10))
-        ttk.Button(frm, text='Browse', command=browse_images).grid(row=1, column=2, padx=6)
+        ttk.Button(frm, text='Durchsuchen', command=browse_images).grid(row=1, column=2, padx=6)
         
-        ttk.Label(frm, text='Output Excel (auto-filled from env):').grid(row=2, column=0, sticky='w')
+        ttk.Label(frm, text='Ausgabe-Excel (automatisch aus env geladen):').grid(row=2, column=0, sticky='w')
         excel_entry = ttk.Entry(frm, textvariable=out_var, state='readonly')
         excel_entry.grid(row=2, column=1, sticky='ew', padx=(5, 10))
-        ttk.Button(frm, text='Browse', command=browse_excel).grid(row=2, column=2, padx=6)
+        ttk.Button(frm, text='Durchsuchen', command=browse_excel).grid(row=2, column=2, padx=6)
 
         # Configure column weights
         frm.columnconfigure(1, weight=1)
@@ -363,36 +363,36 @@ class Launcher(tk.Tk):
                 env['ANALYZER_OUTPUT_EXCEL'] = out_var.get().strip()
 
             subprocess.Popen([sys.executable, analyzer_script], cwd=os.path.dirname(__file__), env=env)
-            messagebox.showinfo('Launched', 'Analyzer launched in a separate process', parent=dlg)
+            messagebox.showinfo('Gestartet', 'Analyzer in separatem Prozess gestartet', parent=dlg)
             dlg.destroy()
 
         btns = ttk.Frame(frm)
         btns.grid(row=3, column=0, columnspan=3, pady=12)
-        ttk.Button(btns, text='Launch Analyzer', command=launch).pack(side=tk.LEFT, padx=6)
-        ttk.Button(btns, text='Cancel', command=dlg.destroy).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btns, text='Analyzer starten', command=launch).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btns, text='Abbrechen', command=dlg.destroy).pack(side=tk.LEFT, padx=6)
 
     def run_renamer_dialog(self):
-        excel_path = filedialog.askopenfilename(parent=self, title='Select Excel file (Fotofallendaten)', filetypes=[('Excel files', '*.xlsx *.xls')])
+        excel_path = filedialog.askopenfilename(parent=self, title='Excel-Datei auswählen (Fotofallendaten)', filetypes=[('Excel-Dateien', '*.xlsx *.xls')])
         if not excel_path:
             return
-        images_folder = filedialog.askdirectory(parent=self, title='Select folder with extracted images')
+        images_folder = filedialog.askdirectory(parent=self, title='Ordner mit extrahierten Bildern auswählen')
         if not images_folder:
             return
 
-        confirm = messagebox.askyesno('Run Renamer', f'Run renamer with:\nExcel: {excel_path}\nImages: {images_folder}\n\nThis will execute a temporary copy of the renamer script with these paths.', parent=self)
+        confirm = messagebox.askyesno('Renamer ausführen', f'Renamer ausführen mit:\nExcel: {excel_path}\nBilder: {images_folder}\n\nDies führt eine temporäre Kopie des Renamer-Skripts mit diesen Pfaden aus.', parent=self)
         if not confirm:
             return
 
         try:
             self.run_renamer_with_paths(excel_path, images_folder)
         except Exception as e:
-            messagebox.showerror('Error', str(e), parent=self)
+            messagebox.showerror('Fehler', str(e), parent=self)
 
     def run_renamer_with_paths(self, excel_path, images_folder):
         # Read original renamer script
         renamer_src = os.path.join(os.path.dirname(__file__), 'rename_images_from_excel.py')
         if not os.path.exists(renamer_src):
-            raise FileNotFoundError('rename_images_from_excel.py not found in repo')
+            raise FileNotFoundError('rename_images_from_excel.py nicht im Repository gefunden')
 
         with open(renamer_src, 'r', encoding='utf-8') as f:
             src = f.read()
@@ -408,7 +408,7 @@ class Launcher(tk.Tk):
             f.write(src_mod)
 
         # Ask whether dry-run
-        dry = messagebox.askyesno('Dry run', 'Run a dry-run (no files will be renamed)?', parent=self)
+        dry = messagebox.askyesno('Probelauf', 'Probelauf ausführen (keine Dateien werden umbenannt)?', parent=self)
 
         # Run in a thread to avoid blocking the GUI
         def runner():
@@ -420,7 +420,7 @@ class Launcher(tk.Tk):
                 output = proc.stdout + '\n' + proc.stderr
                 # Show a simple dialog with the result (could be long)
                 out_win = tk.Toplevel(self)
-                out_win.title('Renamer output')
+                out_win.title('Renamer-Ausgabe')
                 txt = tk.Text(out_win, width=100, height=30)
                 txt.pack(fill=tk.BOTH, expand=True)
                 txt.insert('1.0', output)
