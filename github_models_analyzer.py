@@ -42,6 +42,9 @@ class ImageAnalyzer:
         self.current_image_index = START_FROM_IMAGE - 1
         self.image_files = []
         self.results = []
+        # Simple guards to avoid double-opening dialogs
+        self._dialog_open = False
+        self._manager_opening = False
 
         self.setup_gui()
         self.refresh_image_files()
@@ -146,7 +149,7 @@ class ImageAnalyzer:
 
         ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10, 0))
         self.animals_text = tk.Text(right_frame, height=2, width=40, state='disabled')
-        self.animals_text.pack(anchor=tk.W)
+        self.animals_text.pack(anchor=tk.W, fill=tk.X)
 
         # Bind traces
         self.species1_var.trace('w', self.update_animals_summary)
@@ -165,7 +168,7 @@ class ImageAnalyzer:
 
         ttk.Label(right_frame, text="Sonstiges:").pack(anchor=tk.W)
         self.sonstiges_text = tk.Text(right_frame, height=2, width=40)
-        self.sonstiges_text.pack(anchor=tk.W)
+        self.sonstiges_text.pack(anchor=tk.W, fill=tk.X)
 
         # Testing mode
         self.dummy_mode_var = tk.BooleanVar(value=True)
@@ -185,6 +188,9 @@ class ImageAnalyzer:
     def choose_images_folder(self):
         # Ensure our window is on top so the native dialog appears in front
         initial = self.images_folder or os.path.expanduser('~')
+        if self._dialog_open:
+            return
+        self._dialog_open = True
         try:
             self._bring_root_to_front()
             folder = filedialog.askdirectory(parent=self.root, title="Wähle Bilder-Ordner", initialdir=initial)
@@ -195,6 +201,7 @@ class ImageAnalyzer:
                 self.root.focus_force()
             except Exception:
                 pass
+            self._dialog_open = False
 
         if folder:
             self.images_folder = folder
@@ -212,6 +219,9 @@ class ImageAnalyzer:
         else:
             initial_dir = os.path.expanduser('~')
 
+        if self._dialog_open:
+            return
+        self._dialog_open = True
         try:
             self._bring_root_to_front()
             path = filedialog.asksaveasfilename(parent=self.root, title="Wähle Ausgabe-Excel-Datei",
@@ -225,6 +235,7 @@ class ImageAnalyzer:
                 self.root.focus_force()
             except Exception:
                 pass
+            self._dialog_open = False
 
         if path:
             self.output_excel = path
@@ -233,6 +244,9 @@ class ImageAnalyzer:
     def open_images_folder_in_manager(self):
         folder = self.images_folder or IMAGES_FOLDER or os.path.expanduser('~')
         try:
+            if self._manager_opening:
+                return
+            self._manager_opening = True
             # Best-effort: raise our window before launching the manager so it doesn't open hidden
             try:
                 self._bring_root_to_front()
@@ -256,7 +270,9 @@ class ImageAnalyzer:
             except Exception:
                 pass
         except Exception as e:
-            messagebox.showerror("Fehler", f"Konnte Ordner nicht im Dateimanager öffnen: {e}")
+            messagebox.showerror("Fehler", f"Konnte Ordner nicht im Dateimanager öffnen: {e}", parent=self.root)
+        finally:
+            self._manager_opening = False
 
     def _bring_root_to_front(self):
         """Bring the main window to the front in a best-effort, cross-platform way.
@@ -284,7 +300,7 @@ class ImageAnalyzer:
 
     def load_current_image(self):
         if self.current_image_index >= len(self.image_files):
-            messagebox.showinfo("Fertig", "Alle Bilder wurden verarbeitet!")
+            messagebox.showinfo("Fertig", "Alle Bilder wurden verarbeitet!", parent=self.root)
             self.save_results()
             return
         image_file = self.image_files[self.current_image_index]
@@ -404,6 +420,41 @@ class ImageAnalyzer:
         self.date_var.set(date_str)
         self.parse_animals_to_species(animals)
 
+    def parse_animals_to_species(self, animals_str):
+        """Parse the animals detection string and populate species fields."""
+        if not animals_str or animals_str.strip() == "":
+            return
+        
+        # Simple parsing - split by comma and try to extract species and counts
+        parts = [p.strip() for p in animals_str.split(',')]
+        
+        # Clear existing fields
+        self.species1_var.set("")
+        self.count1_var.set("")
+        self.species2_var.set("")
+        self.count2_var.set("")
+        
+        for i, part in enumerate(parts[:2]):  # Only handle first 2 species
+            # Try to extract number and species name
+            import re
+            match = re.match(r'(\d+)\s*(.+)', part.strip())
+            if match:
+                count, species = match.groups()
+                if i == 0:
+                    self.species1_var.set(species.strip())
+                    self.count1_var.set(count)
+                elif i == 1:
+                    self.species2_var.set(species.strip())
+                    self.count2_var.set(count)
+            else:
+                # No number found, assume count is 1
+                if i == 0:
+                    self.species1_var.set(part.strip())
+                    self.count1_var.set("1")
+                elif i == 1:
+                    self.species2_var.set(part.strip())
+                    self.count2_var.set("1")
+
     def confirm_and_next(self):
         if not self.image_files:
             return
@@ -423,10 +474,10 @@ class ImageAnalyzer:
         luisa_checked = self.luisa_var.get()
 
         if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
-            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)")
+            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)", parent=self.root)
             return
         if not date:
-            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein")
+            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein", parent=self.root)
             return
 
         new_id = gm_io.get_next_id_for_location(self.output_excel or OUTPUT_EXCEL, location)
@@ -435,7 +486,7 @@ class ImageAnalyzer:
             self.images_folder, image_file, location, date, species1, count1, species2, count2, new_id, generl_checked, luisa_checked
         )
         if new_image_name is None:
-            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes. Eintrag wird trotzdem gespeichert.")
+            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes. Eintrag wird trotzdem gespeichert.", parent=self.root)
             new_image_name = image_file
 
         data = {
@@ -472,7 +523,7 @@ class ImageAnalyzer:
         else:
             self.save_results()
             out = self.output_excel or OUTPUT_EXCEL
-            messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {out}")
+            messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {out}", parent=self.root)
 
     def skip_image(self):
         self.current_image_index += 1
