@@ -1,12 +1,9 @@
-extract_msg
+extract-msg
 pandas
 openpyxl
 Pillow
-requestsextract-msg==0.48.7
-openpyxl
-pandas
-pytesseract
-openai
-pillow
-tkinter
 requests
+pytesseract
+python-dotenv
+# Optional (only if you use the OpenAI python client directly)
+# openai

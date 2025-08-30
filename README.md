@@ -66,6 +66,9 @@ output_folder = r"/home/user/extracted_attachments"
 extract_images_outlook/
 ├── extract_img_email.py         # Extracts images from .msg files
 ├── rename_images_from_excel.py  # Renames images based on Excel sheet
+├── github_models_analyzer.py    # Tkinter GUI analyzer (uses GitHub Models)
+├── github_models_api.py         # Helper: calls GitHub Models and parses responses
+├── github_models_io.py          # Helper: image listing, renaming, Excel I/O
 ├── requirements.txt             # Python dependencies
 ├── README.md                    # This file
 └── .gitignore                   # Git ignore rules
@@ -129,6 +132,49 @@ pip3 install -r requirements.txt
 - [extract-msg](https://pypi.org/project/extract-msg/): Library for extracting data from Microsoft Outlook message files
 - [pandas](https://pandas.pydata.org/): Data analysis library
 - [openpyxl](https://openpyxl.readthedocs.io/): Excel file reader
+
+## Analyzer (Kamerafallen Bild-Analyzer)
+
+This repository now contains a small Tkinter GUI called `github_models_analyzer.py`.
+It performs camera-trap image analysis using a GitHub Models API and writes results
+into Excel files. The analyzer separates concerns:
+
+- `github_models_api.py` handles calls to GitHub Models and parsing the structured
+   model responses.
+- `github_models_io.py` handles image listing, creating backups, renaming images,
+   and writing rows to Excel sheets.
+
+Usage:
+
+1. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Optionally set environment variables (see `.env.example`):
+
+- `GITHUB_MODELS_TOKEN` — GitHub Models personal access token (Models permission)
+- `ANALYZER_IMAGES_FOLDER` — optional default images folder
+- `ANALYZER_OUTPUT_EXCEL` — optional default output Excel path
+
+3. Start the GUI:
+
+```bash
+python3 github_models_analyzer.py
+```
+
+4. For a quick headless check:
+
+```bash
+python3 github_models_analyzer.py --no-gui
+```
+
+Notes:
+
+- If you do not provide `GITHUB_MODELS_TOKEN`, use the built-in "Testdaten verwenden"
+   checkbox to populate realistic dummy data for testing the UI and Excel writes.
+- The renaming convention and Excel structure are described in the code comments.
 
 ## License
 
