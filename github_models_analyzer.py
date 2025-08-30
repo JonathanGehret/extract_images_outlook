@@ -185,12 +185,29 @@ class ImageAnalyzer:
         button_frame = ttk.Frame(right_frame)
         button_frame.pack(pady=20)
         ttk.Button(button_frame, text="Aktuelles Bild analysieren", command=self.analyze_current_image).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Bild umbenennen", command=self.rename_current_image).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Bestätigen & Weiter", command=self.confirm_and_next).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Bild überspringen", command=self.skip_image).pack(side=tk.LEFT, padx=5)
 
-        # Progress
+        # Progress and status
         self.progress_var = tk.StringVar()
         ttk.Label(right_frame, textvariable=self.progress_var).pack(pady=10)
+        
+        # Add filename preview for rename functionality
+        self.filename_preview_var = tk.StringVar()
+        self.filename_preview_label = ttk.Label(right_frame, textvariable=self.filename_preview_var, 
+                                                font=('Arial', 8), foreground='blue')
+        self.filename_preview_label.pack(pady=(0, 5))
+        
+        # Bind form changes to update filename preview
+        self.location_var.trace('w', self.update_filename_preview)
+        self.date_var.trace('w', self.update_filename_preview)
+        self.species1_var.trace('w', self.update_filename_preview)
+        self.count1_var.trace('w', self.update_filename_preview)
+        self.species2_var.trace('w', self.update_filename_preview)
+        self.count2_var.trace('w', self.update_filename_preview)
+        self.generl_var.trace('w', self.update_filename_preview)
+        self.luisa_var.trace('w', self.update_filename_preview)
 
     def choose_images_folder(self):
         # Ensure our window is on top so the native dialog appears in front
@@ -340,6 +357,34 @@ class ImageAnalyzer:
         self.animals_text.insert(1.0, summary)
         self.animals_text.config(state='disabled')
 
+    def update_filename_preview(self, *args):
+        """Update the filename preview when form fields change."""
+        try:
+            if not self.image_files or self.current_image_index >= len(self.image_files):
+                self.filename_preview_var.set("")
+                return
+                
+            image_file = self.image_files[self.current_image_index]
+            location = self.location_var.get().strip()
+            date = self.date_var.get().strip()
+            species1 = self.species1_var.get().strip()
+            count1 = self.count1_var.get().strip()
+            species2 = self.species2_var.get().strip()
+            count2 = self.count2_var.get().strip()
+            generl_checked = self.generl_var.get()
+            luisa_checked = self.luisa_var.get()
+            
+            if location and location in ['FP1', 'FP2', 'FP3', 'Nische'] and date:
+                try:
+                    new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, generl_checked, luisa_checked)
+                    self.filename_preview_var.set(f"🔄 Neuer Name: {new_filename}")
+                except Exception:
+                    self.filename_preview_var.set("⚠ Ungültige Daten für Umbenennung")
+            else:
+                self.filename_preview_var.set("ℹ Standort und Datum erforderlich für Umbenennung")
+        except Exception:
+            self.filename_preview_var.set("")
+
     def clear_fields(self):
         self.location_var.set("")
         self.time_var.set("")
@@ -354,6 +399,7 @@ class ImageAnalyzer:
         self.aktivitat_var.set("")
         self.interaktion_var.set("")
         self.sonstiges_text.delete(1.0, tk.END)
+        self.filename_preview_var.set("")
 
     def analyze_current_image(self):
         if self.dummy_mode_var.get():
@@ -461,6 +507,174 @@ class ImageAnalyzer:
                 elif i == 1:
                     self.species2_var.set(part.strip())
                     self.count2_var.set("1")
+
+    def rename_current_image(self):
+        """Rename the current image based on the form data using the same logic as the renamer script."""
+        if not self.image_files:
+            messagebox.showerror("Fehler", "Keine Bilder geladen", parent=self.root)
+            return
+            
+        image_file = self.image_files[self.current_image_index]
+        location = self.location_var.get().strip()
+        date = self.date_var.get().strip()
+        species1 = self.species1_var.get().strip()
+        count1 = self.count1_var.get().strip()
+        species2 = self.species2_var.get().strip()
+        count2 = self.count2_var.get().strip()
+        generl_checked = self.generl_var.get()
+        luisa_checked = self.luisa_var.get()
+        
+        # Validate required fields
+        if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
+            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)", parent=self.root)
+            return
+        if not date:
+            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein", parent=self.root)
+            return
+            
+        try:
+            new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, generl_checked, luisa_checked)
+            
+            # Show preview and ask for confirmation
+            confirm_msg = f"Bild umbenennen von:\n{image_file}\n\nzu:\n{new_filename}\n\nFortfahren?"
+            if not messagebox.askyesno("Umbenennen bestätigen", confirm_msg, parent=self.root):
+                return
+                
+            if self._rename_image_file(image_file, new_filename):
+                # Update the image list and current display
+                self.refresh_image_files()
+                # Try to find the renamed file in the list
+                if new_filename in self.image_files:
+                    self.current_image_index = self.image_files.index(new_filename)
+                self.load_current_image()
+                messagebox.showinfo("Erfolg", f"✅ Bild erfolgreich umbenannt!\n\nNeuer Name:\n{new_filename}", parent=self.root)
+        except Exception as e:
+            messagebox.showerror("Fehler", f"❌ Fehler beim Umbenennen:\n{e}", parent=self.root)
+
+    def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, generl_checked, luisa_checked):
+        """Generate new filename using the same logic as rename_images_from_excel.py."""
+        import re
+        
+        # Extract number from current filename (e.g., fotofallen_2025_123.jpeg -> 123)
+        nr = None
+        match = re.search(r'fotofallen_2025_(\d+)', current_filename)
+        if match:
+            nr = int(match.group(1))
+        else:
+            # Try other patterns like location_NNNN_date_animals.jpeg
+            match = re.search(r'_(\d{4})_', current_filename)
+            if match:
+                nr = int(match.group(1))
+            else:
+                # Use timestamp as fallback
+                import time
+                nr = int(time.time()) % 10000
+        
+        # Convert date from DD.MM.YYYY to MM.DD.YY format
+        date_str = self._convert_date_to_new_format(date)
+        
+        # Process animals
+        animals = self._process_animals_for_filename(species1, count1, species2, count2)
+        animal_str = "_".join(animals) if animals else "Unknown"
+        
+        # Get special names
+        special_names = []
+        if generl_checked:
+            special_names.append("Generl")
+        if luisa_checked:
+            special_names.append("Luisa")
+        special_str = "_".join(special_names) if special_names else ""
+        
+        # Build new filename: location_NRNR_MM.DD.YY_[Generl_][Luisa_]Animal_count.jpeg
+        if special_str:
+            new_name = f"{location}_{nr:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
+        else:
+            new_name = f"{location}_{nr:04d}_{date_str}_{animal_str}.jpeg"
+            
+        return new_name
+
+    def _convert_date_to_new_format(self, date_str):
+        """Convert date from DD.MM.YYYY to MM.DD.YY format."""
+        try:
+            import pandas as pd
+            # If it's a pandas Timestamp or datetime object
+            date_obj = pd.to_datetime(date_str)
+            # Convert to MM.DD.YY format
+            return date_obj.strftime("%m.%d.%y")
+        except Exception:
+            # If it's a string, try to parse DD.MM.YYYY
+            parts = str(date_str).split(".")
+            if len(parts) == 3:
+                day, month, year = parts
+                # Convert to MM.DD.YY format (last 2 digits of year)
+                short_year = year[-2:] if len(year) == 4 else year
+                return f"{month.zfill(2)}.{day.zfill(2)}.{short_year}"
+            else:
+                print(f"Warning: Unrecognized date format: {date_str}")
+                return str(date_str)
+
+    def _process_animals_for_filename(self, species1, count1, species2, count2):
+        """Process animal information for filename according to renamer specifications."""
+        animals = []
+        
+        # Handle Art 1 and Art 2 columns with quantities
+        for animal, count in [(species1, count1), (species2, count2)]:
+            if animal:
+                count_suffix = ""
+                
+                # Get count if available
+                if count:
+                    try:
+                        count_val = int(float(count))
+                        if count_val > 1:
+                            count_suffix = f"_{count_val}"
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Handle special animal codes (matching the renamer script logic)
+                if animal.upper() == 'RK':
+                    animals.append(f"Rabenkrähe{count_suffix}")
+                elif animal.lower() == 'rk':
+                    animals.append(f"Kolkrabe{count_suffix}")
+                elif animal.upper() == 'RV':
+                    animals.append(f"Kolkrabe{count_suffix}")  # Assuming RV is also Kolkrabe
+                elif animal.lower() in ['fuchs', 'marder']:
+                    animals.append(f"{animal.capitalize()}{count_suffix}")
+                elif animal.lower() == 'gams':
+                    animals.append(f"Gämse{count_suffix}")
+                elif animal:  # Any other animal
+                    animals.append(f"{animal}{count_suffix}")
+        
+        return animals
+
+    def _rename_image_file(self, old_filename, new_filename):
+        """Rename the image file with backup creation."""
+        images_folder = self.images_folder or IMAGES_FOLDER
+        old_path = os.path.join(images_folder, old_filename)
+        new_path = os.path.join(images_folder, new_filename)
+        
+        if not os.path.exists(old_path):
+            raise FileNotFoundError(f"Original file not found: {old_filename}")
+            
+        if os.path.exists(new_path):
+            raise FileExistsError(f"Target file already exists: {new_filename}")
+            
+        # Create backup directory if it doesn't exist
+        backup_dir = os.path.join(images_folder, "backup_originals")
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        # Create backup
+        backup_path = os.path.join(backup_dir, old_filename)
+        if not os.path.exists(backup_path):
+            import shutil
+            shutil.copy2(old_path, backup_path)
+            print(f"Backup created: {backup_path}")
+        
+        # Rename the file
+        os.rename(old_path, new_path)
+        print(f"Renamed: {old_filename} -> {new_filename}")
+        
+        return True
 
     def confirm_and_next(self):
         if not self.image_files:
