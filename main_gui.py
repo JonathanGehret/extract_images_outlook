@@ -245,9 +245,20 @@ class Launcher(tk.Tk):
         dlg.geometry('620x220')
         dlg.minsize(500, 180)
 
-        token_var = tk.StringVar()
-        images_var = tk.StringVar(value='')
-        out_var = tk.StringVar(value='')
+        # Try to load .env and get current token
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass
+        
+        current_token = os.environ.get("GITHUB_MODELS_TOKEN", "")
+        current_images = os.environ.get("ANALYZER_IMAGES_FOLDER", "")
+        current_excel = os.environ.get("ANALYZER_OUTPUT_EXCEL", "")
+
+        token_var = tk.StringVar(value=current_token)
+        images_var = tk.StringVar(value=current_images)
+        out_var = tk.StringVar(value=current_excel)
 
         # Dialog protection
         dlg._dialog_open = False
@@ -299,15 +310,44 @@ class Launcher(tk.Tk):
         frm = ttk.Frame(dlg, padding=10)
         frm.pack(fill=tk.BOTH, expand=True)
         
-        ttk.Label(frm, text='GitHub Models Token (optional - will set GITHUB_MODELS_TOKEN):').grid(row=0, column=0, sticky='w')
-        ttk.Entry(frm, textvariable=token_var, show='*').grid(row=0, column=1, sticky='ew', padx=(5, 10))
+        # Token row with show/hide functionality
+        token_frame = ttk.Frame(frm)
+        token_frame.grid(row=0, column=0, columnspan=3, sticky='ew', pady=(0, 5))
+        token_frame.columnconfigure(1, weight=1)
         
-        ttk.Label(frm, text='Images folder (optional - will set ANALYZER_IMAGES_FOLDER):').grid(row=1, column=0, sticky='w')
-        ttk.Entry(frm, textvariable=images_var, state='readonly').grid(row=1, column=1, sticky='ew', padx=(5, 10))
+        ttk.Label(token_frame, text='GitHub Models Token (auto-filled from env):').grid(row=0, column=0, sticky='w')
+        
+        show_token_var = tk.BooleanVar()
+        token_entry = ttk.Entry(token_frame, textvariable=token_var)
+        token_entry.grid(row=0, column=1, sticky='ew', padx=(5, 10))
+        
+        def toggle_token_visibility():
+            if show_token_var.get():
+                token_entry.config(show='')
+            else:
+                token_entry.config(show='*')
+        
+        # Set initial state - hide token if it exists
+        if current_token:
+            token_entry.config(show='*')
+            # Add status label
+            status_text = f"✓ Token loaded from environment ({len(current_token)} chars)"
+            ttk.Label(token_frame, text=status_text, foreground='green', font=('Arial', 8)).grid(row=1, column=1, sticky='w', padx=(5, 0))
+        else:
+            show_token_var.set(True)  # Show empty field by default
+            ttk.Label(token_frame, text="⚠ No token found in environment", foreground='orange', font=('Arial', 8)).grid(row=1, column=1, sticky='w', padx=(5, 0))
+            
+        ttk.Checkbutton(token_frame, text='Show', variable=show_token_var, 
+                       command=toggle_token_visibility).grid(row=0, column=2, padx=6)
+        
+        ttk.Label(frm, text='Images folder (auto-filled from env):').grid(row=1, column=0, sticky='w')
+        images_entry = ttk.Entry(frm, textvariable=images_var, state='readonly')
+        images_entry.grid(row=1, column=1, sticky='ew', padx=(5, 10))
         ttk.Button(frm, text='Browse', command=browse_images).grid(row=1, column=2, padx=6)
         
-        ttk.Label(frm, text='Output Excel (optional - will set ANALYZER_OUTPUT_EXCEL):').grid(row=2, column=0, sticky='w')
-        ttk.Entry(frm, textvariable=out_var, state='readonly').grid(row=2, column=1, sticky='ew', padx=(5, 10))
+        ttk.Label(frm, text='Output Excel (auto-filled from env):').grid(row=2, column=0, sticky='w')
+        excel_entry = ttk.Entry(frm, textvariable=out_var, state='readonly')
+        excel_entry.grid(row=2, column=1, sticky='ew', padx=(5, 10))
         ttk.Button(frm, text='Browse', command=browse_excel).grid(row=2, column=2, padx=6)
 
         # Configure column weights
