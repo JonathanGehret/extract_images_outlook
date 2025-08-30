@@ -19,7 +19,7 @@ import argparse
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import github_models_api as gm_api
 import github_models_io as gm_io
 
@@ -50,21 +50,42 @@ class ImageAnalyzer:
         self.root = tk.Tk()
         self.root.title("Kamerafallen Bild-Analyzer - GitHub Models")
         self.root.geometry("1200x800")
+        # Require a reasonable minimum so controls can expand properly
+        self.root.minsize(900, 600)
 
         # Top: folder selectors
         folder_frame = ttk.Frame(self.root)
         folder_frame.pack(fill=tk.X, padx=10, pady=(10, 0))
 
+        # Images folder label + entry + icon button
         ttk.Label(folder_frame, text="Bilder-Ordner:").pack(side=tk.LEFT)
-        self.images_folder_var = tk.StringVar(value=self.images_folder or "Nicht ausgewählt")
-        ttk.Label(folder_frame, textvariable=self.images_folder_var, width=60).pack(side=tk.LEFT, padx=(5, 10))
-        ttk.Button(folder_frame, text="Wählen...", command=self.choose_images_folder).pack(side=tk.LEFT)
+        self.images_folder_var = tk.StringVar(value=self.images_folder or "")
+        self.images_folder_entry = ttk.Entry(folder_frame, textvariable=self.images_folder_var, state='readonly')
+        self.images_folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
+
+        # Create a small folder icon for the browse buttons
+        try:
+            self.folder_icon = self._create_folder_icon(24, 24)
+        except Exception:
+            self.folder_icon = None
+
+        if self.folder_icon:
+            ttk.Button(folder_frame, image=self.folder_icon, command=self.choose_images_folder).pack(side=tk.LEFT)
+        else:
+            ttk.Button(folder_frame, text="Wählen...", command=self.choose_images_folder).pack(side=tk.LEFT)
+
         ttk.Button(folder_frame, text="Im Dateimanager öffnen", command=self.open_images_folder_in_manager).pack(side=tk.LEFT, padx=(5, 10))
 
+        # Output Excel label + entry + icon button
         ttk.Label(folder_frame, text="  Ausgabe Excel:").pack(side=tk.LEFT, padx=(20, 0))
-        self.output_excel_var = tk.StringVar(value=self.output_excel or "Nicht ausgewählt")
-        ttk.Label(folder_frame, textvariable=self.output_excel_var, width=40).pack(side=tk.LEFT, padx=(5, 10))
-        ttk.Button(folder_frame, text="Wählen...", command=self.choose_output_excel).pack(side=tk.LEFT)
+        self.output_excel_var = tk.StringVar(value=self.output_excel or "")
+        self.output_excel_entry = ttk.Entry(folder_frame, textvariable=self.output_excel_var, state='readonly')
+        self.output_excel_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
+
+        if self.folder_icon:
+            ttk.Button(folder_frame, image=self.folder_icon, command=self.choose_output_excel).pack(side=tk.LEFT)
+        else:
+            ttk.Button(folder_frame, text="Wählen...", command=self.choose_output_excel).pack(side=tk.LEFT)
 
         # Create main frames
         left_frame = ttk.Frame(self.root, width=600)
@@ -162,18 +183,49 @@ class ImageAnalyzer:
         ttk.Label(right_frame, textvariable=self.progress_var).pack(pady=10)
 
     def choose_images_folder(self):
+        # Ensure our window is on top so the native dialog appears in front
         initial = self.images_folder or os.path.expanduser('~')
-        folder = filedialog.askdirectory(title="Wähle Bilder-Ordner", initialdir=initial)
+        try:
+            self._bring_root_to_front()
+            folder = filedialog.askdirectory(parent=self.root, title="Wähle Bilder-Ordner", initialdir=initial)
+        finally:
+            # restore normal stacking and focus
+            try:
+                self.root.attributes('-topmost', False)
+                self.root.focus_force()
+            except Exception:
+                pass
+
         if folder:
             self.images_folder = folder
             self.images_folder_var.set(folder)
             self.refresh_image_files()
 
     def choose_output_excel(self):
-        initial = self.output_excel or os.path.expanduser('~')
-        path = filedialog.asksaveasfilename(title="Wähle Ausgabe-Excel-Datei", initialdir=initial,
-                                            defaultextension=".xlsx",
-                                            filetypes=[("Excel Dateien", "*.xlsx"), ("Alle Dateien", "*")])
+        # Bring our window forward so the file dialog is visible on top
+        # If an output path exists, open dialog in that folder
+        initial_dir = None
+        initial_file = None
+        if self.output_excel:
+            initial_dir = os.path.dirname(self.output_excel) or os.path.expanduser('~')
+            initial_file = os.path.basename(self.output_excel)
+        else:
+            initial_dir = os.path.expanduser('~')
+
+        try:
+            self._bring_root_to_front()
+            path = filedialog.asksaveasfilename(parent=self.root, title="Wähle Ausgabe-Excel-Datei",
+                                                initialdir=initial_dir,
+                                                initialfile=initial_file,
+                                                defaultextension=".xlsx",
+                                                filetypes=[("Excel Dateien", "*.xlsx"), ("Alle Dateien", "*")])
+        finally:
+            try:
+                self.root.attributes('-topmost', False)
+                self.root.focus_force()
+            except Exception:
+                pass
+
         if path:
             self.output_excel = path
             self.output_excel_var.set(path)
@@ -181,6 +233,12 @@ class ImageAnalyzer:
     def open_images_folder_in_manager(self):
         folder = self.images_folder or IMAGES_FOLDER or os.path.expanduser('~')
         try:
+            # Best-effort: raise our window before launching the manager so it doesn't open hidden
+            try:
+                self._bring_root_to_front()
+            except Exception:
+                pass
+
             if sys.platform.startswith('linux'):
                 subprocess.Popen(['xdg-open', folder])
             elif sys.platform == 'darwin':
@@ -189,8 +247,31 @@ class ImageAnalyzer:
                 subprocess.Popen(['explorer', os.path.normpath(folder)])
             else:
                 subprocess.Popen(['xdg-open', folder])
+
+            # We can't reliably force another app to the foreground on every platform
+            # (window managers differ). We do a best-effort to return focus to the file manager
+            # by briefly releasing topmost status here.
+            try:
+                self.root.attributes('-topmost', False)
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Fehler", f"Konnte Ordner nicht im Dateimanager öffnen: {e}")
+
+    def _bring_root_to_front(self):
+        """Bring the main window to the front in a best-effort, cross-platform way.
+
+        This sets the window temporarily topmost, lifts it and updates the UI so
+        native file dialogs spawned as children are more likely to appear on top.
+        """
+        try:
+            # lift the window and make it temporarily topmost
+            self.root.lift()
+            self.root.attributes('-topmost', True)
+            self.root.update()
+        except Exception:
+            # Some platforms/window managers may not support these attributes.
+            pass
 
     def refresh_image_files(self):
         self.image_files = gm_io.get_image_files(self.images_folder)
@@ -414,6 +495,16 @@ class ImageAnalyzer:
 
     def run(self):
         self.root.mainloop()
+
+    def _create_folder_icon(self, w=24, h=24):
+        """Create a simple folder icon (PIL -> PhotoImage) for button use."""
+        img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        # folder base
+        draw.rectangle([2, 8, w - 2, h - 3], fill=(220, 180, 60), outline=(140, 100, 30))
+        # tab
+        draw.rectangle([2, 4, w // 2, 10], fill=(240, 200, 80), outline=(140, 100, 30))
+        return ImageTk.PhotoImage(img)
 
 
 if __name__ == "__main__":
