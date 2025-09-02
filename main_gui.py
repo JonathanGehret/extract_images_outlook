@@ -396,23 +396,157 @@ class Launcher(tk.Tk):
         ttk.Button(btns, text='Abbrechen', command=dlg.destroy).pack(side=tk.LEFT, padx=6)
 
     def run_renamer_dialog(self):
-        excel_path = filedialog.askopenfilename(parent=self, title='Excel-Datei auswählen (Fotofallendaten)', filetypes=[('Excel-Dateien', '*.xlsx *.xls')])
-        if not excel_path:
-            return
-        images_folder = filedialog.askdirectory(parent=self, title='Ordner mit extrahierten Bildern auswählen')
-        if not images_folder:
-            return
+        # Create comprehensive renamer dialog
+        dlg = tk.Toplevel(self)
+        dlg.title('Bilder umbenennen - Konfiguration')
+        dlg.geometry('650x400')
+        dlg.minsize(600, 350)
+        
+        # Variables for the form
+        excel_var = tk.StringVar()
+        images_var = tk.StringVar() 
+        pattern_var = tk.StringVar(value='fotofallen_2025_{num}.jpeg')  # Default pattern
+        mode_var = tk.StringVar(value='actual')  # 'preview' or 'actual'
+        
+        # Dialog protection
+        dlg._dialog_open = False
+        
+        def bring_dlg_to_front():
+            try:
+                dlg.lift()
+                dlg.attributes('-topmost', True)
+                dlg.update()
+            except Exception:
+                pass
+                
+        def browse_excel():
+            if dlg._dialog_open:
+                return
+            dlg._dialog_open = True
+            try:
+                bring_dlg_to_front()
+                path = filedialog.askopenfilename(parent=dlg, title='Excel-Datei auswählen (Fotofallendaten)', 
+                                                filetypes=[('Excel-Dateien', '*.xlsx *.xls')])
+            finally:
+                try:
+                    dlg.attributes('-topmost', False)
+                    dlg.focus_force()
+                except Exception:
+                    pass
+                dlg._dialog_open = False
+            if path:
+                excel_var.set(path)
+                
+        def browse_images():
+            if dlg._dialog_open:
+                return
+            dlg._dialog_open = True
+            try:
+                bring_dlg_to_front()
+                path = filedialog.askdirectory(parent=dlg, title='Ordner mit Bildern auswählen')
+            finally:
+                try:
+                    dlg.attributes('-topmost', False)
+                    dlg.focus_force()
+                except Exception:
+                    pass
+                dlg._dialog_open = False
+            if path:
+                images_var.set(path)
+        
+        # Main frame
+        main_frame = ttk.Frame(dlg, padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        ttk.Label(main_frame, text='Bilder aus Excel-Daten umbenennen', font=('Arial', 12, 'bold')).pack(pady=(0, 15))
+        
+        # Excel file selection
+        excel_frame = ttk.Frame(main_frame)
+        excel_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(excel_frame, text='Excel-Datei (Fotofallendaten):').pack(anchor=tk.W)
+        excel_entry_frame = ttk.Frame(excel_frame)
+        excel_entry_frame.pack(fill=tk.X, pady=(2, 0))
+        excel_entry = ttk.Entry(excel_entry_frame, textvariable=excel_var, state='readonly')
+        excel_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(excel_entry_frame, text='Durchsuchen', command=browse_excel).pack(side=tk.RIGHT)
+        
+        # Images folder selection  
+        images_frame = ttk.Frame(main_frame)
+        images_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(images_frame, text='Bilder-Ordner:').pack(anchor=tk.W)
+        images_entry_frame = ttk.Frame(images_frame)
+        images_entry_frame.pack(fill=tk.X, pady=(2, 0))
+        images_entry = ttk.Entry(images_entry_frame, textvariable=images_var, state='readonly')
+        images_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        ttk.Button(images_entry_frame, text='Durchsuchen', command=browse_images).pack(side=tk.RIGHT)
+        
+        # Image name pattern
+        pattern_frame = ttk.Frame(main_frame)
+        pattern_frame.pack(fill=tk.X, pady=(0, 10))
+        ttk.Label(pattern_frame, text='Bild-Namensmuster (verwende {num} für Nummerierung):').pack(anchor=tk.W)
+        pattern_entry = ttk.Entry(pattern_frame, textvariable=pattern_var)
+        pattern_entry.pack(fill=tk.X, pady=(2, 0))
+        
+        # Help text for pattern
+        help_frame = ttk.Frame(main_frame)
+        help_frame.pack(fill=tk.X, pady=(0, 15))
+        help_text = ttk.Label(help_frame, text='Beispiele: fotofallen_2025_{num}.jpeg, IMG_{num}.jpg, kamerafalle_{num}.png', 
+                             font=('Arial', 8), foreground='gray')
+        help_text.pack(anchor=tk.W)
+        
+        # Mode selection
+        mode_frame = ttk.LabelFrame(main_frame, text='Ausführungsart', padding=10)
+        mode_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Radiobutton(mode_frame, text='Vorschau anzeigen (keine Dateien ändern)', 
+                       variable=mode_var, value='preview').pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(mode_frame, text='Dateien tatsächlich umbenennen', 
+                       variable=mode_var, value='actual').pack(anchor=tk.W, pady=2)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        def run_rename():
+            excel_path = excel_var.get().strip()
+            images_path = images_var.get().strip()
+            pattern = pattern_var.get().strip()
+            
+            if not excel_path:
+                messagebox.showerror('Fehler', 'Bitte wählen Sie eine Excel-Datei aus.', parent=dlg)
+                return
+            if not images_path:
+                messagebox.showerror('Fehler', 'Bitte wählen Sie einen Bilder-Ordner aus.', parent=dlg)
+                return
+            if not pattern or '{num}' not in pattern:
+                messagebox.showerror('Fehler', 'Bitte geben Sie ein gültiges Namensmuster mit {num} ein.', parent=dlg)
+                return
+                
+            is_preview = mode_var.get() == 'preview'
+            mode_text = 'Vorschau' if is_preview else 'Umbenennung'
+            
+            confirm_msg = f'{mode_text} starten mit:\n\nExcel: {excel_path}\nBilder: {images_path}\nMuster: {pattern}'
+            if not is_preview:
+                confirm_msg += '\n\n⚠️ ACHTUNG: Dateien werden tatsächlich umbenannt!'
+                
+            if not messagebox.askyesno(f'{mode_text} bestätigen', confirm_msg, parent=dlg):
+                return
+                
+            dlg.destroy()
+            
+            try:
+                self.run_renamer_with_paths(excel_path, images_path, pattern, is_preview)
+            except Exception as e:
+                messagebox.showerror('Fehler', str(e), parent=self)
+        
+        ttk.Button(button_frame, text='Ausführen', command=run_rename).pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text='Abbrechen', command=dlg.destroy).pack(side=tk.RIGHT)
+        
+        # Set focus to Excel browse button
+        dlg.focus_set()
 
-        confirm = messagebox.askyesno('Renamer ausführen', f'Renamer ausführen mit:\nExcel: {excel_path}\nBilder: {images_folder}\n\nDies führt eine temporäre Kopie des Renamer-Skripts mit diesen Pfaden aus.', parent=self)
-        if not confirm:
-            return
-
-        try:
-            self.run_renamer_with_paths(excel_path, images_folder)
-        except Exception as e:
-            messagebox.showerror('Fehler', str(e), parent=self)
-
-    def run_renamer_with_paths(self, excel_path, images_folder):
+    def run_renamer_with_paths(self, excel_path, images_folder, pattern, is_preview):
         # Read original renamer script
         renamer_src = os.path.join(os.path.dirname(__file__), 'rename_images_from_excel.py')
         if not os.path.exists(renamer_src):
@@ -421,9 +555,46 @@ class Launcher(tk.Tk):
         with open(renamer_src, 'r', encoding='utf-8') as f:
             src = f.read()
 
-        # Replace the constants EXCEL_PATH and IMAGES_FOLDER if present
+        # Replace the constants EXCEL_PATH, IMAGES_FOLDER, and image pattern if present
         src_mod = re.sub(r'EXCEL_PATH\s*=\s*.*', f'EXCEL_PATH = r"{excel_path}"', src)
         src_mod = re.sub(r'IMAGES_FOLDER\s*=\s*.*', f'IMAGES_FOLDER = r"{images_folder}"', src_mod)
+        
+        # Try to replace image pattern if the script has this feature
+        # Look for patterns like NEW_NAME_PATTERN = '...' or similar
+        pattern_patterns = [
+            r'NEW_NAME_PATTERN\s*=\s*.*',
+            r'IMAGE_NAME_PATTERN\s*=\s*.*',
+            r'FILENAME_PATTERN\s*=\s*.*'
+        ]
+        
+        pattern_replaced = False
+        for p in pattern_patterns:
+            if re.search(p, src_mod):
+                src_mod = re.sub(p, f'NEW_NAME_PATTERN = r"{pattern}"', src_mod)
+                pattern_replaced = True
+                break
+        
+        # If no pattern variable found, add it at the top after imports
+        if not pattern_replaced:
+            # Find where to insert the pattern variable
+            import_lines = []
+            other_lines = []
+            in_imports = True
+            
+            for line in src_mod.split('\n'):
+                if in_imports and (line.strip().startswith('import ') or line.strip().startswith('from ') or line.strip() == '' or line.strip().startswith('#')):
+                    import_lines.append(line)
+                else:
+                    in_imports = False
+                    other_lines.append(line)
+            
+            # Add pattern variable after imports
+            import_lines.append('')
+            import_lines.append(f'# Custom image naming pattern from GUI')
+            import_lines.append(f'NEW_NAME_PATTERN = r"{pattern}"')
+            import_lines.append('')
+            
+            src_mod = '\n'.join(import_lines + other_lines)
 
         # Write to a temp file and execute it
         fd, tmp_path = tempfile.mkstemp(prefix='renamer_tmp_', suffix='.py')
@@ -431,24 +602,51 @@ class Launcher(tk.Tk):
         with open(tmp_path, 'w', encoding='utf-8') as f:
             f.write(src_mod)
 
-        # Ask whether dry-run
-        dry = messagebox.askyesno('Probelauf', 'Probelauf ausführen (keine Dateien werden umbenannt)?', parent=self)
-
         # Run in a thread to avoid blocking the GUI
         def runner():
             try:
                 cmd = [sys.executable, tmp_path]
-                if dry:
+                if is_preview:
                     cmd.append('--dry-run')
                 proc = subprocess.run(cmd, cwd=os.path.dirname(__file__), capture_output=True, text=True)
                 output = proc.stdout + '\n' + proc.stderr
-                # Show a simple dialog with the result (could be long)
+                
+                # Create a nice output window
                 out_win = tk.Toplevel(self)
-                out_win.title('Renamer-Ausgabe')
-                txt = tk.Text(out_win, width=100, height=30)
-                txt.pack(fill=tk.BOTH, expand=True)
+                out_win.title('Bilder umbenennen - Ergebnis')
+                out_win.geometry('900x600')
+                
+                # Add a frame for better layout
+                main_frame = ttk.Frame(out_win, padding=10)
+                main_frame.pack(fill=tk.BOTH, expand=True)
+                
+                # Title
+                mode_text = 'Vorschau' if is_preview else 'Umbenennung'
+                ttk.Label(main_frame, text=f'{mode_text} - Ergebnis', font=('Arial', 12, 'bold')).pack(pady=(0, 10))
+                
+                # Info
+                info_text = f'Excel: {excel_path}\nBilder: {images_folder}\nMuster: {pattern}'
+                ttk.Label(main_frame, text=info_text, font=('Arial', 9)).pack(anchor=tk.W, pady=(0, 10))
+                
+                # Scrollable text area
+                text_frame = ttk.Frame(main_frame)
+                text_frame.pack(fill=tk.BOTH, expand=True)
+                
+                txt = tk.Text(text_frame, font=('Consolas', 9), wrap=tk.WORD)
+                scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=txt.yview)
+                txt.configure(yscrollcommand=scrollbar.set)
+                
+                txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                
                 txt.insert('1.0', output)
                 txt.config(state='disabled')
+                
+                # Close button
+                ttk.Button(main_frame, text='Schließen', command=out_win.destroy).pack(pady=(10, 0))
+                
+            except Exception as e:
+                messagebox.showerror('Fehler beim Ausführen', f'Fehler beim Ausführen des Renamer-Skripts:\n{str(e)}', parent=self)
             finally:
                 try:
                     os.remove(tmp_path)
