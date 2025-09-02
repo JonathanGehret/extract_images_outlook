@@ -31,16 +31,22 @@ PIPFILE.lock
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
 
-# Packaging artifacts
+# Packaging artifacts (EXCLUDE generated files, INCLUDE build scripts)
+# Generated executables and packages
 KamerafallenTools-*/
 *-linux.zip
 *-windows.zip
-*-windows/
-build_*.sh
-build_*.bat
-*.spec
+KamerafallenTools_optimized.spec
+KamerafallenTools_windows.spec
+
+# But INCLUDE the build scripts (needed for cross-platform builds)
+# These are source files that should be in git:
+# build_final.py ✓ (included)
+# build_windows_v2.bat ✓ (included) 
+# build_linux.sh ✓ (included)
+# create_release.py ✓ (included)
+# BUILD_INSTRUCTIONS.md ✓ (included)
 
 # Installer logs
 pip-log.txt
