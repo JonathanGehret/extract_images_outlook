@@ -37,8 +37,10 @@ GITHUB_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN", "")
 START_FROM_IMAGE = 1
 
 ANIMAL_SPECIES = [
-    "Bearded Vulture", "Golden Eagle", "Raven", "Carrion Crow",
-    "Hooded Crow", "Jackdaw", "Fox", "Chamois", "Ibex", "Marmot"
+    "Bartgeier", "Steinadler", "Kolkabe",
+    "Alpendohle", "Fuchs", "Gams", "Steinbock", 
+    "Murmeltier", "Marder", "Reh", "Hirsch", "Rabenkrähe",
+    "Mensch"
 ]
 
 

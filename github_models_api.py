@@ -43,23 +43,23 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
         "Accept": "application/json"
     }
 
-    prompt = f"""Analyze this camera trap image and provide the following information:
+    prompt = f"""Analysiere dieses Kamerafallen-Bild und gib die folgenden Informationen:
 
-1. ANIMALS: Identify any animals visible in the image. Choose only from this list: {', '.join(animal_species)}
-   - For Bearded Vultures: just say "Bearded Vulture" (no count needed)
-   - For all other animals: include the count (e.g., "2 Ravens", "1 Fox", "3 Chamois")
-   - If no animals visible, say "None detected"
+        1. TIERE: Identifiziere alle sichtbaren Tiere im Bild. Wähle nur aus dieser Liste: {', '.join(animal_species)}
+        - Für Bartgeier: sage einfach "Bartgeier" (keine Anzahl erforderlich)
+        - Für alle anderen Tiere: inklusive die Anzahl (z.B., "2 Kolkraben", "1 Fuchs", "3 Gämsen")
+        - Wenn keine Tiere sichtbar sind, sage "Keine erkannt"
 
-2. METADATA: Read the text at the bottom of the image and extract:
-   - Location: Look for FP1, FP2, FP3, or Nische (ignore any "NLP" prefix)
-   - Time: Extract time in HH:MM:SS format (with seconds)
-   - Date: Extract date in DD.MM.YYYY format (German format with dots)
+        2. METADATEN: Lies den Text am unteren Rand des Bildes und extrahiere:
+        - Standort: Suche nach FP1, FP2, FP3 oder Nische (ignoriere jegliches "NLP"-Präfix)
+        - Uhrzeit: Extrahiere die Uhrzeit im HH:MM:SS-Format (mit Sekunden)
+        - Datum: Extrahiere das Datum im DD.MM.YYYY-Format (deutsches Format mit Punkten)
 
-Please format your response exactly like this:
-ANIMALS: [animal name with count or "None detected"]
-LOCATION: [FP1/FP2/FP3/Nische only]
-TIME: [time in HH:MM:SS]
-DATE: [date in DD.MM.YYYY]"""
+        Bitte formatiere deine Antwort genau wie folgt:
+        TIERE: [Tiername mit Anzahl oder "Keine erkannt"]
+        STANDORT: [FP1/FP2/FP3/Nische]
+        UHRZEIT: [Uhrzeit in HH:MM:SS]
+        DATUM: [Datum in DD.MM.YYYY]"""
 
     if model_name == "gpt-5":
         payload = {
@@ -86,7 +86,7 @@ DATE: [date in DD.MM.YYYY]"""
 
 def parse_analysis_response(analysis_text: str):
     """Parse the structured response from the AI model into fields."""
-    animals = "None detected"
+    animals = "Keine erkannt"  # Default to German for consistency
     location = ""
     time_str = ""
     date_str = ""
@@ -94,10 +94,10 @@ def parse_analysis_response(analysis_text: str):
     lines = analysis_text.split('\n')
     for line in lines:
         line = line.strip()
-        if line.startswith('ANIMALS:'):
-            animals = line.replace('ANIMALS:', '').strip()
-        elif line.startswith('LOCATION:'):
-            location = line.replace('LOCATION:', '').strip()
+        if line.startswith('TIERE:') or line.startswith('ANIMALS:'):  # Support both
+            animals = line.replace('TIERE:', '').replace('ANIMALS:', '').strip()
+        elif line.startswith('STANDORT:') or line.startswith('LOCATION:'):
+            location = line.replace('STANDORT:', '').replace('LOCATION:', '').strip()
             if 'FP1' in location.upper():
                 location = 'FP1'
             elif 'FP2' in location.upper():
@@ -106,12 +106,12 @@ def parse_analysis_response(analysis_text: str):
                 location = 'FP3'
             elif 'NISCHE' in location.upper():
                 location = 'Nische'
-        elif line.startswith('TIME:'):
-            time_str = line.replace('TIME:', '').strip()
+        elif line.startswith('UHRZEIT:') or line.startswith('TIME:'):
+            time_str = line.replace('UHRZEIT:', '').replace('TIME:', '').strip()
             if len(time_str.split(':')) == 2:
                 time_str = f"{time_str}:00"
-        elif line.startswith('DATE:'):
-            date_str = line.replace('DATE:', '').strip()
+        elif line.startswith('DATUM:') or line.startswith('DATE:'):
+            date_str = line.replace('DATUM:', '').replace('DATE:', '').strip()
             if '-' in date_str and '.' not in date_str:
                 date_str = date_str.replace('-', '.')
 
