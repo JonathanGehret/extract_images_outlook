@@ -24,6 +24,7 @@ python -m PyInstaller --clean ^
     --onefile ^
     --windowed ^
     --name "KamerafallenTools" ^
+    --icon "bg_fotos_icon.ico" ^
     --hidden-import tkinter ^
     --hidden-import tkinter.ttk ^
     --hidden-import tkinter.filedialog ^
