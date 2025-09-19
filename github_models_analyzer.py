@@ -136,8 +136,10 @@ class ImageAnalyzer:
         ttk.Checkbutton(checkboxes_frame, text="Generl", variable=self.generl_var, command=self.on_generl_toggle).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Checkbutton(checkboxes_frame, text="Luisa", variable=self.luisa_var, command=self.on_luisa_toggle).pack(side=tk.LEFT, padx=10)
 
-        # Species fields
+        # Species fields (updated to 4)
         ttk.Label(right_frame, text="Tierarten und Anzahl:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10, 5))
+        
+        # Species 1
         species_frame1 = ttk.Frame(right_frame)
         species_frame1.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame1, text="Art 1:").pack(side=tk.LEFT)
@@ -147,6 +149,7 @@ class ImageAnalyzer:
         self.count1_var = tk.StringVar()
         ttk.Entry(species_frame1, textvariable=self.count1_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
+        # Species 2
         species_frame2 = ttk.Frame(right_frame)
         species_frame2.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame2, text="Art 2:").pack(side=tk.LEFT)
@@ -156,15 +159,39 @@ class ImageAnalyzer:
         self.count2_var = tk.StringVar()
         ttk.Entry(species_frame2, textvariable=self.count2_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
+        # Species 3 (new)
+        species_frame3 = ttk.Frame(right_frame)
+        species_frame3.pack(anchor=tk.W, fill=tk.X, pady=2)
+        ttk.Label(species_frame3, text="Art 3:").pack(side=tk.LEFT)
+        self.species3_var = tk.StringVar()
+        ttk.Entry(species_frame3, textvariable=self.species3_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        ttk.Label(species_frame3, text="Anzahl:").pack(side=tk.LEFT)
+        self.count3_var = tk.StringVar()
+        ttk.Entry(species_frame3, textvariable=self.count3_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+
+        # Species 4 (new)
+        species_frame4 = ttk.Frame(right_frame)
+        species_frame4.pack(anchor=tk.W, fill=tk.X, pady=2)
+        ttk.Label(species_frame4, text="Art 4:").pack(side=tk.LEFT)
+        self.species4_var = tk.StringVar()
+        ttk.Entry(species_frame4, textvariable=self.species4_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        ttk.Label(species_frame4, text="Anzahl:").pack(side=tk.LEFT)
+        self.count4_var = tk.StringVar()
+        ttk.Entry(species_frame4, textvariable=self.count4_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+
         ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10, 0))
         self.animals_text = tk.Text(right_frame, height=2, width=40, state='disabled')
         self.animals_text.pack(anchor=tk.W, fill=tk.X)
 
-        # Bind traces
+        # Bind traces (updated to include species 3 and 4)
         self.species1_var.trace('w', self.update_animals_summary)
         self.count1_var.trace('w', self.update_animals_summary)
         self.species2_var.trace('w', self.update_animals_summary)
         self.count2_var.trace('w', self.update_animals_summary)
+        self.species3_var.trace('w', self.update_animals_summary)
+        self.count3_var.trace('w', self.update_animals_summary)
+        self.species4_var.trace('w', self.update_animals_summary)
+        self.count4_var.trace('w', self.update_animals_summary)
 
         # extras
         ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10, 0))
@@ -208,6 +235,10 @@ class ImageAnalyzer:
         self.count1_var.trace('w', self.update_filename_preview)
         self.species2_var.trace('w', self.update_filename_preview)
         self.count2_var.trace('w', self.update_filename_preview)
+        self.species3_var.trace('w', self.update_filename_preview)
+        self.count3_var.trace('w', self.update_filename_preview)
+        self.species4_var.trace('w', self.update_filename_preview)
+        self.count4_var.trace('w', self.update_filename_preview)
         self.generl_var.trace('w', self.update_filename_preview)
         self.luisa_var.trace('w', self.update_filename_preview)
 
@@ -347,12 +378,10 @@ class ImageAnalyzer:
 
     def update_animals_summary(self, *args):
         parts = []
-        if self.species1_var.get().strip():
-            c = self.count1_var.get().strip()
-            parts.append(f"{c} {self.species1_var.get().strip()}" if c else self.species1_var.get().strip())
-        if self.species2_var.get().strip():
-            c = self.count2_var.get().strip()
-            parts.append(f"{c} {self.species2_var.get().strip()}" if c else self.species2_var.get().strip())
+        for species_var, count_var in [(self.species1_var, self.count1_var), (self.species2_var, self.count2_var), (self.species3_var, self.count3_var), (self.species4_var, self.count4_var)]:
+            if species_var.get().strip():
+                c = count_var.get().strip()
+                parts.append(f"{c} {species_var.get().strip()}" if c else species_var.get().strip())
         summary = ", ".join(parts) if parts else "Keine Tiere entdeckt"
         self.animals_text.config(state='normal')
         self.animals_text.delete(1.0, tk.END)
@@ -373,12 +402,16 @@ class ImageAnalyzer:
             count1 = self.count1_var.get().strip()
             species2 = self.species2_var.get().strip()
             count2 = self.count2_var.get().strip()
+            species3 = self.species3_var.get().strip()  # New
+            count3 = self.count3_var.get().strip()      # New
+            species4 = self.species4_var.get().strip()  # New
+            count4 = self.count4_var.get().strip()      # New
             generl_checked = self.generl_var.get()
             luisa_checked = self.luisa_var.get()
             
             if location and location in ['FP1', 'FP2', 'FP3', 'Nische'] and date:
                 try:
-                    new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, generl_checked, luisa_checked)
+                    new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked)  # Updated
                     self.filename_preview_var.set(f"🔄 Neuer Name: {new_filename}")
                 except Exception:
                     self.filename_preview_var.set("⚠ Ungültige Daten für Umbenennung")
@@ -395,6 +428,10 @@ class ImageAnalyzer:
         self.count1_var.set("")
         self.species2_var.set("")
         self.count2_var.set("")
+        self.species3_var.set("")  # New
+        self.count3_var.set("")    # New
+        self.species4_var.set("")  # New
+        self.count4_var.set("")    # New
         self.animals_text.config(state='normal')
         self.animals_text.delete(1.0, tk.END)
         self.animals_text.config(state='disabled')
@@ -430,28 +467,20 @@ class ImageAnalyzer:
         self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:00")
         self.date_var.set(f"{random.randint(1,31):02d}.{random.randint(7,8):02d}.2025")
 
-        num_species = random.choices([0, 1, 2], weights=[20, 60, 20])[0]
+        num_species = random.choices([0, 1, 2, 3, 4], weights=[10, 40, 30, 15, 5])[0]  # Updated to allow up to 4
 
-        if num_species >= 1:
-            species1, counts1 = random.choice(species_options[:-1])
-            self.species1_var.set(species1)
-            self.count1_var.set(random.choice(counts1))
-        else:
-            self.species1_var.set("")
-            self.count1_var.set("")
+        species_vars = [self.species1_var, self.species2_var, self.species3_var, self.species4_var]  # New
+        count_vars = [self.count1_var, self.count2_var, self.count3_var, self.count4_var]          # New
 
-        if num_species >= 2:
-            available_species = [s for s in species_options[:-1] if s[0] != self.species1_var.get()]
-            if available_species:
-                species2, counts2 = random.choice(available_species)
-                self.species2_var.set(species2)
-                self.count2_var.set(random.choice(counts2))
-            else:
-                self.species2_var.set("")
-                self.count2_var.set("")
-        else:
-            self.species2_var.set("")
-            self.count2_var.set("")
+        for i in range(num_species):
+            species, counts = random.choice(species_options[:-1])
+            species_vars[i].set(species)
+            count_vars[i].set(random.choice(counts))
+
+        # Clear unused species
+        for i in range(num_species, 4):
+            species_vars[i].set("")
+            count_vars[i].set("")
 
         self.aktivitat_var.set(random.choice(activities))
         self.interaktion_var.set(random.choice(interactions))
@@ -467,13 +496,41 @@ class ImageAnalyzer:
         image_path = os.path.join(images_folder, image_file)
         try:
             animals, location, time_str, date_str = gm_api.analyze_with_github_models(image_path, GITHUB_TOKEN, ANIMAL_SPECIES)
+
+            # Set checkboxes based on animals string
+            if "Generl und Luisa" in animals or "Luisa und Generl" in animals:
+                # Both are present
+                self.generl_var.set(True)
+                self.luisa_var.set(True)
+            elif "(Luisa)" in animals:
+                # Only Luisa
+                self.luisa_var.set(True)
+                self.generl_var.set(False)
+            elif "(Generl)" in animals:
+                # Only Generl
+                self.generl_var.set(True)
+                self.luisa_var.set(False)
+            elif "unbestimmt" in animals:
+                # Unidentified, so neither
+                self.generl_var.set(False)
+                self.luisa_var.set(False)
+            else:
+                # Default: neither
+                self.generl_var.set(False)
+                self.luisa_var.set(False)
+
+            # Populate other fields as before
+            self.location_var.set(location)
+            self.time_var.set(time_str)
+            self.date_var.set(date_str)
+            self.parse_animals_to_species(animals)
         except Exception as e:
             print(f"Fehler bei KI-Analyse: {e}")
             animals, location, time_str, date_str = "", "", "", ""
-        self.location_var.set(location)
-        self.time_var.set(time_str)
-        self.date_var.set(date_str)
-        self.parse_animals_to_species(animals)
+            self.location_var.set(location)
+            self.time_var.set(time_str)
+            self.date_var.set(date_str)
+            self.parse_animals_to_species(animals)
 
     def parse_animals_to_species(self, animals_str):
         """Parse the animals detection string and populate species fields."""
@@ -488,27 +545,26 @@ class ImageAnalyzer:
         self.count1_var.set("")
         self.species2_var.set("")
         self.count2_var.set("")
+        self.species3_var.set("")  # New
+        self.count3_var.set("")    # New
+        self.species4_var.set("")  # New
+        self.count4_var.set("")    # New
         
-        for i, part in enumerate(parts[:2]):  # Only handle first 2 species
+        species_vars = [self.species1_var, self.species2_var, self.species3_var, self.species4_var]  # New
+        count_vars = [self.count1_var, self.count2_var, self.count3_var, self.count4_var]          # New
+        
+        for i, part in enumerate(parts[:4]):  # Updated to handle up to 4
             # Try to extract number and species name
             import re
             match = re.match(r'(\d+)\s*(.+)', part.strip())
             if match:
                 count, species = match.groups()
-                if i == 0:
-                    self.species1_var.set(species.strip())
-                    self.count1_var.set(count)
-                elif i == 1:
-                    self.species2_var.set(species.strip())
-                    self.count2_var.set(count)
+                species_vars[i].set(species.strip())
+                count_vars[i].set(count)
             else:
                 # No number found, assume count is 1
-                if i == 0:
-                    self.species1_var.set(part.strip())
-                    self.count1_var.set("1")
-                elif i == 1:
-                    self.species2_var.set(part.strip())
-                    self.count2_var.set("1")
+                species_vars[i].set(part.strip())
+                count_vars[i].set("1")
 
     def rename_current_image(self):
         """Rename the current image based on the form data using the same logic as the renamer script."""
@@ -523,6 +579,10 @@ class ImageAnalyzer:
         count1 = self.count1_var.get().strip()
         species2 = self.species2_var.get().strip()
         count2 = self.count2_var.get().strip()
+        species3 = self.species3_var.get().strip()  # New
+        count3 = self.count3_var.get().strip()      # New
+        species4 = self.species4_var.get().strip()  # New
+        count4 = self.count4_var.get().strip()      # New
         generl_checked = self.generl_var.get()
         luisa_checked = self.luisa_var.get()
         
@@ -535,7 +595,7 @@ class ImageAnalyzer:
             return
             
         try:
-            new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, generl_checked, luisa_checked)
+            new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked)  # Updated
             
             # Show preview and ask for confirmation
             confirm_msg = f"Bild umbenennen von:\n{image_file}\n\nzu:\n{new_filename}\n\nFortfahren?"
@@ -553,8 +613,7 @@ class ImageAnalyzer:
         except Exception as e:
             messagebox.showerror("Fehler", f"❌ Fehler beim Umbenennen:\n{e}", parent=self.root)
 
-    def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, generl_checked, luisa_checked):
-        """Generate new filename using the same logic as rename_images_from_excel.py."""
+    def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked):  # Updated signature
         import re
         
         # Extract number from current filename (e.g., fotofallen_2025_123.jpeg -> 123)
@@ -575,8 +634,8 @@ class ImageAnalyzer:
         # Convert date from DD.MM.YYYY to MM.DD.YY format
         date_str = self._convert_date_to_new_format(date)
         
-        # Process animals
-        animals = self._process_animals_for_filename(species1, count1, species2, count2)
+        # Process animals (updated to include species 3 and 4)
+        animals = self._process_animals_for_filename(species1, count1, species2, count2, species3, count3, species4, count4)  # Updated
         animal_str = "_".join(animals) if animals else "Unknown"
         
         # Get special names
@@ -615,12 +674,12 @@ class ImageAnalyzer:
                 print(f"Warnung: Unerkanntes Datumsformat: {date_str}")
                 return str(date_str)
 
-    def _process_animals_for_filename(self, species1, count1, species2, count2):
+    def _process_animals_for_filename(self, species1, count1, species2, count2, species3, count3, species4, count4):  # Updated signature
         """Process animal information for filename according to renamer specifications."""
         animals = []
         
-        # Handle Art 1 and Art 2 columns with quantities
-        for animal, count in [(species1, count1), (species2, count2)]:
+        # Handle Art 1 to Art 4 columns with quantities
+        for animal, count in [(species1, count1), (species2, count2), (species3, count3), (species4, count4)]:  # Updated
             if animal:
                 count_suffix = ""
                 
@@ -693,6 +752,10 @@ class ImageAnalyzer:
         count1 = self.count1_var.get().strip()
         species2 = self.species2_var.get().strip()
         count2 = self.count2_var.get().strip()
+        species3 = self.species3_var.get().strip()  # New
+        count3 = self.count3_var.get().strip()      # New
+        species4 = self.species4_var.get().strip()  # New
+        count4 = self.count4_var.get().strip()      # New
         generl_checked = self.generl_var.get()
         luisa_checked = self.luisa_var.get()
 
@@ -725,9 +788,13 @@ class ImageAnalyzer:
             'Anzahl 1': count1,
             'Art 2': species2,
             'Anzahl 2': count2,
+            'Art 3': species3,  # New
+            'Anzahl 3': count3,  # New
+            'Art 4': species4,  # New
+            'Anzahl 4': count4,  # New
             'Interaktion': interaktion,
             'Sonstiges': sonstiges,
-            'General': 'X' if generl_checked else '',
+            'Generl': 'X' if generl_checked else '',
             'Luisa': 'X' if luisa_checked else '',
             'Korrektur': '',
             'animals_detected': animals,

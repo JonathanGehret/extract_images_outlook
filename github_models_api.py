@@ -45,21 +45,25 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
 
     prompt = f"""Analysiere dieses Kamerafallen-Bild und gib die folgenden Informationen:
 
-        1. TIERE: Identifiziere alle sichtbaren Tiere im Bild. Wähle nur aus dieser Liste: {', '.join(animal_species)}
-        - Für Bartgeier: sage einfach "Bartgeier" (keine Anzahl erforderlich)
-        - Für alle anderen Tiere: inklusive die Anzahl (z.B., "2 Kolkraben", "1 Fuchs", "3 Gämsen")
-        - Wenn keine Tiere sichtbar sind, sage "Keine erkannt"
+    1. TIERE: Identifiziere alle sichtbaren Tiere im Bild. Wähle nur aus dieser Liste: {', '.join(animal_species)}
+    - Für Bartgeier: Wenn möglich, identifiziere die Individuen basierend auf diesen Merkmalen:
+      - Luisa: Hellere braune Federn mit mehr weißen Flecken, dunklerer Kopf, gelber Ring am rechten Bein, grüner Ring am linken Bein, gebleichte Federn am linken Flügel (nur sichtbar bei geöffnetem Flügel) und am Schwanz (sichtbar beim Sitzen).
+      - Generl: Dunkelbraune Federn mit weniger Flecken, gebleichte Federn am linken Flügel (sichtbar beim Sitzen) und an den rechten Fingern (nur bei geöffnetem Flügel). Schwarzer Ring am linken Bein, roter Ring am rechten Bein.
+      - Wenn das Individuum identifiziert werden kann, füge es in Klammern hinzu, z.B., "Bartgeier (Luisa)". Wenn unsicher, sage nur "Bartgeier (unbestimmt)".
+    - Für alle anderen Tiere: inklusive die Anzahl (z.B., "2 Kolkraben", "1 Fuchs", "3 Gämsen")
+    - Wenn Kolkrabe oder Rabenkrähe erkannt wird: Achte besonders auf Größe (Kolkrabe ist größer), Schnabelform (Kolkrabe hat einen dickeren, keilförmigen Schnabel; Rabenkrähe einen schlankeren) und Schwanzform (Kolkrabe keilförmig, Rabenkrähe fächerförmig) relativ zur Umgebung, um eine genaue Unterscheidung zu treffen.
+    - Wenn keine Tiere sichtbar sind, sage "Keine erkannt"
 
-        2. METADATEN: Lies den Text am unteren Rand des Bildes und extrahiere:
-        - Standort: Suche nach FP1, FP2, FP3 oder Nische (ignoriere jegliches "NLP"-Präfix)
-        - Uhrzeit: Extrahiere die Uhrzeit im HH:MM:SS-Format (mit Sekunden)
-        - Datum: Extrahiere das Datum im DD.MM.YYYY-Format (deutsches Format mit Punkten)
+    2. METADATEN: Lies den Text am unteren Rand des Bildes und extrahiere:
+    - Standort: Suche nach FP1, FP2, FP3 oder Nische (ignoriere jegliches "NLP"-Präfix)
+    - Uhrzeit: Extrahiere die Uhrzeit im HH:MM:SS-Format (mit Sekunden)
+    - Datum: Extrahiere das Datum im DD.MM.YYYY-Format (deutsches Format mit Punkten)
 
-        Bitte formatiere deine Antwort genau wie folgt:
-        TIERE: [Tiername mit Anzahl oder "Keine erkannt"]
-        STANDORT: [FP1/FP2/FP3/Nische]
-        UHRZEIT: [Uhrzeit in HH:MM:SS]
-        DATUM: [Datum in DD.MM.YYYY]"""
+    Bitte formatiere deine Antwort genau wie folgt:
+    TIERE: [Tiername mit Anzahl oder "Keine erkannt"]
+    STANDORT: [FP1/FP2/FP3/Nische]
+    UHRZEIT: [Uhrzeit in HH:MM:SS]
+    DATUM: [Datum in DD.MM.YYYY]"""
 
     if model_name == "gpt-5":
         payload = {
