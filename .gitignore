@@ -149,6 +149,7 @@ dmypy.json
 *.jpeg
 *.jpg
 *.xlsx
+*.xlsx#
 *.xls
 extracted_images/
 output/
@@ -170,5 +171,3 @@ test_messages/
 .Trashes
 ehthumbs.db
 Thumbs.db
-.~lock.analyzed_images.xlsx#
-.~lock.Fotofallendaten_2025.xlsx#
