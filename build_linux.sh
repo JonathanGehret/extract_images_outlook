@@ -11,7 +11,11 @@ python3 -m PyInstaller \
     --onefile \
     --windowed \
     --name="KamerafallenTools" \
-    --add-data="*.py:." \
+    --add-data="github_models_analyzer.py:." \
+    --add-data="github_models_io.py:." \
+    --add-data="github_models_api.py:." \
+    --add-data="extract_img_email.py:." \
+    --add-data="rename_images_from_excel.py:." \
     --hidden-import="PIL._tkinter_finder" \
     --hidden-import="extract_msg" \
     --hidden-import="pandas" \
@@ -23,6 +27,11 @@ python3 -m PyInstaller \
     --hidden-import="tkinter.ttk" \
     --hidden-import="tkinter.filedialog" \
     --hidden-import="tkinter.messagebox" \
+    --hidden-import="github_models_analyzer" \
+    --hidden-import="github_models_io" \
+    --hidden-import="github_models_api" \
+    --hidden-import="extract_img_email" \
+    --hidden-import="rename_images_from_excel" \
     --exclude-module="torch" \
     --exclude-module="tensorflow" \
     --exclude-module="torchvision" \
