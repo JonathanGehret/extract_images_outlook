@@ -20,6 +20,9 @@ import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ImageDraw
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 import github_models_api as gm_api
 import github_models_io as gm_io
 
@@ -37,11 +40,166 @@ GITHUB_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN", "")
 START_FROM_IMAGE = 1
 
 ANIMAL_SPECIES = [
-    "Bartgeier", "Steinadler", "Rabenvogel",
+    "Bartgeier", "Steinadler", "Kolkabe",
     "Alpendohle", "Fuchs", "Gams", "Steinbock", 
-    "Murmeltier", "Marder", "Reh", "Hirsch",
+    "Murmeltier", "Marder", "Reh", "Hirsch", "Rabenkrähe",
     "Mensch"
 ]
+
+
+class AnalysisBuffer:
+    """Manages asynchronous analysis with rolling buffer for smooth user experience."""
+    
+    def __init__(self, analyzer_instance):
+        self.analyzer = analyzer_instance
+        self.buffer = {}  # {image_index: analysis_result}
+        self.analyzing = set()  # Currently being analyzed
+        self.failed = set()  # Failed analyses
+        self.executor = ThreadPoolExecutor(max_workers=5)
+        self.buffer_size = 3  # Keep 3 images ahead analyzed
+        
+    def get_analysis(self, image_index):
+        """Get analysis result for image, trigger batch if not available."""
+        if image_index in self.buffer:
+            result = self.buffer.pop(image_index)
+            # Trigger next batch analysis
+            self._ensure_buffer_ahead(image_index + 1)
+            return result
+        elif image_index in self.analyzing:
+            return "analyzing"
+        elif image_index in self.failed:
+            return "failed"
+        else:
+            # Start batch analysis from this image
+            self._start_batch_analysis(image_index)
+            return "analyzing"
+    
+    def _ensure_buffer_ahead(self, current_index):
+        """Ensure we have buffer_size images analyzed ahead."""
+        for i in range(current_index, min(current_index + self.buffer_size, len(self.analyzer.image_files))):
+            if (i not in self.buffer and 
+                i not in self.analyzing and 
+                i not in self.failed):
+                self._start_single_analysis(i)
+    
+    def _start_batch_analysis(self, start_index):
+        """Start analyzing a batch of up to 5 images."""
+        batch_size = min(5, len(self.analyzer.image_files) - start_index)
+        for i in range(start_index, start_index + batch_size):
+            if i not in self.buffer and i not in self.analyzing:
+                self._start_single_analysis(i)
+    
+    def _start_single_analysis(self, image_index):
+        """Start analyzing a single image asynchronously."""
+        if image_index >= len(self.analyzer.image_files):
+            return
+            
+        self.analyzing.add(image_index)
+        future = self.executor.submit(self._analyze_image, image_index)
+        future.add_done_callback(lambda f: self._analysis_complete(image_index, f))
+    
+    def _analyze_image(self, image_index):
+        """Perform the actual image analysis."""
+        try:
+            # Get the image file path
+            image_file = self.analyzer.image_files[image_index]
+            images_folder = self.analyzer.images_folder or IMAGES_FOLDER
+            image_path = os.path.join(images_folder, image_file)
+            
+            # Check if token is available
+            if not GITHUB_TOKEN:
+                return {
+                    'animals': 'Token fehlt',
+                    'location': 'Unbekannt',
+                    'date': '',
+                    'time': '',
+                    'error': 'GITHUB_MODELS_TOKEN nicht gesetzt'
+                }
+            
+            # Use existing AI analysis function
+            animals, location, time_str, date_str = gm_api.analyze_with_github_models(
+                image_path, GITHUB_TOKEN, ANIMAL_SPECIES
+            )
+            
+            return {
+                'animals': animals or 'Keine Tiere erkannt',
+                'location': location or 'Unbekannt',
+                'date': date_str or '',
+                'time': time_str or '',
+                'error': None
+            }
+                
+        except Exception as e:
+            print(f"Analysis error for image {image_index}: {e}")
+            return {
+                'animals': 'Fehler bei Analyse',
+                'location': 'Unbekannt',
+                'date': '',
+                'time': '',
+                'error': str(e)
+            }
+    
+    def _analysis_complete(self, image_index, future):
+        """Handle completion of image analysis."""
+        self.analyzing.discard(image_index)
+        
+        try:
+            result = future.result()
+            if result.get('error'):
+                self.failed.add(image_index)
+                print(f"Analysis failed for image {image_index}: {result['error']}")
+            else:
+                self.buffer[image_index] = result
+                print(f"✓ Analysis complete for image {image_index}: {result['animals']}")
+                
+                # Update UI if this is the current image
+                if image_index == self.analyzer.current_image_index:
+                    self.analyzer.root.after(0, lambda r=result: self._update_current_image_ui(r))
+                    
+                # Update buffer status
+                self.analyzer.root.after(0, self._update_buffer_status)
+                    
+        except Exception as e:
+            self.failed.add(image_index)
+            print(f"Exception in analysis for image {image_index}: {e}")
+    
+    def _update_current_image_ui(self, result):
+        """Update UI with analysis result if it's for current image."""
+        try:
+            # Parse animals to species and populate fields
+            self.analyzer.parse_animals_to_species(result['animals'])
+            
+            # Update location and other fields
+            self.analyzer.location_var.set(result['location'])
+            if result['date']:
+                self.analyzer.date_var.set(result['date'])
+            if result['time']:
+                self.analyzer.time_var.set(result['time'])
+            
+            # Update status
+            if hasattr(self.analyzer, 'analysis_status_label'):
+                self.analyzer.analysis_status_label.config(text="✓ Analyse abgeschlossen", foreground="green")
+        except Exception as e:
+            print(f"Error updating UI: {e}")
+    
+    def _update_buffer_status(self):
+        """Update buffer status display."""
+        if hasattr(self.analyzer, 'buffer_status_label'):
+            status = self.get_buffer_status()
+            buffer_text = f"Buffer: {status['buffered']} bereit, {status['analyzing']} analysieren, {status['failed']} fehlgeschlagen"
+            self.analyzer.buffer_status_label.config(text=buffer_text)
+    
+    def get_buffer_status(self):
+        """Get current buffer status for display."""
+        return {
+            'buffered': len(self.buffer),
+            'analyzing': len(self.analyzing),
+            'failed': len(self.failed)
+        }
+    
+    def cleanup(self):
+        """Clean up resources."""
+        self.executor.shutdown(wait=False)
 
 
 class ImageAnalyzer:
@@ -55,9 +213,15 @@ class ImageAnalyzer:
         # Simple guards to avoid double-opening dialogs
         self._dialog_open = False
         self._manager_opening = False
+        
+        # Initialize the analysis buffer
+        self.analysis_buffer = None  # Will be initialized after GUI setup
 
         self.setup_gui()
         self.refresh_image_files()
+        
+        # Initialize buffer after image files are loaded
+        self.analysis_buffer = AnalysisBuffer(self)
 
     def setup_gui(self):
         self.root = tk.Tk()
@@ -274,6 +438,17 @@ class ImageAnalyzer:
         ttk.Button(button_frame, text="Bild umbenennen", command=self.rename_current_image).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Bestätigen & Weiter", command=self.confirm_and_next).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Bild überspringen", command=self.skip_image).pack(side=tk.LEFT, padx=5)
+
+        # Analysis and buffer status
+        status_frame = ttk.Frame(right_frame)
+        status_frame.pack(pady=(10, 5), fill=tk.X)
+        
+        self.analysis_status_label = ttk.Label(status_frame, text="Bereit für Analyse", font=('Arial', 9, 'bold'))
+        self.analysis_status_label.pack()
+        
+        self.buffer_status_label = ttk.Label(status_frame, text="Buffer: Bereit für Batch-Analyse", 
+                                           font=('Arial', 8), foreground='gray')
+        self.buffer_status_label.pack(pady=(2, 0))
 
         # Progress and status
         self.progress_var = tk.StringVar()
@@ -498,10 +673,52 @@ class ImageAnalyzer:
         self.filename_preview_var.set("")
 
     def analyze_current_image(self):
+        """Analyze current image using smart buffer system or dummy data."""
         if self.dummy_mode_var.get():
             self.use_dummy_data()
+            return
+            
+        if not self.image_files:
+            messagebox.showwarning("Keine Bilder", "Bitte wählen Sie zuerst einen Bilder-Ordner.", parent=self.root)
+            return
+
+        if not self.analysis_buffer:
+            messagebox.showerror("Fehler", "Analysis Buffer nicht initialisiert.", parent=self.root)
+            return
+
+        # Update status
+        self.analysis_status_label.config(text="🔄 Analysiere...", foreground="blue")
+        
+        # Get analysis from buffer (will trigger batch if needed)
+        result = self.analysis_buffer.get_analysis(self.current_image_index)
+        
+        if result == "analyzing":
+            # Analysis in progress, show loading state
+            self.analysis_status_label.config(text="🔄 Analyse läuft... (Batch wird verarbeitet)", foreground="orange")
+            # The UI will be updated automatically when analysis completes
+        elif result == "failed":
+            # Analysis failed
+            self.analysis_status_label.config(text="❌ Analyse fehlgeschlagen", foreground="red")
+            messagebox.showerror("Fehler", "Die Analyse für dieses Bild ist fehlgeschlagen.", parent=self.root)
         else:
-            self.analyze_with_ai()
+            # Analysis result available immediately
+            self._apply_analysis_result(result)
+            self.analysis_status_label.config(text="✓ Analyse abgeschlossen", foreground="green")
+        
+        # Update buffer status
+        self.analysis_buffer._update_buffer_status()
+
+    def _apply_analysis_result(self, result):
+        """Apply analysis result to the GUI fields."""
+        # Parse animals to species and populate fields
+        self.parse_animals_to_species(result['animals'])
+        
+        # Update location and other fields
+        self.location_var.set(result['location'])
+        if result.get('date'):
+            self.date_var.set(result['date'])
+        if result.get('time'):
+            self.time_var.set(result['time'])
 
     def use_dummy_data(self):
         import random
@@ -800,7 +1017,7 @@ class ImageAnalyzer:
         image_file = self.image_files[self.current_image_index]
         location = self.location_var.get()
         date = self.date_var.get()
-        time = self.time_var.get()
+        time_str = self.time_var.get()
         animals = self.animals_text.get(1.0, tk.END).strip()
         aktivitat = self.aktivitat_var.get()
         interaktion = self.interaktion_var.get()
@@ -836,7 +1053,7 @@ class ImageAnalyzer:
             'Nr. ': new_id,
             'Standort': location,
             'Datum': date,
-            'Uhrzeit': time,
+            'Uhrzeit': time_str,
             'Dagmar': '',
             'Recka': '',
             'Unbestimmt': 'Bg' if 'Bartgeier' in animals else '',
@@ -862,19 +1079,51 @@ class ImageAnalyzer:
         self.results.append(data)
         gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, location, data)
 
-        # Advance
+        # Advance to next image
         if self.current_image_index < len(self.image_files) - 1:
             self.current_image_index += 1
             self.refresh_image_files()
             self.load_current_image()
+            self.clear_fields()
+            
+            # Check if next image is already analyzed
+            if self.analysis_buffer:
+                result = self.analysis_buffer.get_analysis(self.current_image_index)
+                if result not in ["analyzing", "failed"]:
+                    # Auto-fill if already analyzed
+                    self._apply_analysis_result(result)
+                    self.analysis_status_label.config(text="✓ Bereits analysiert", foreground="green")
+                else:
+                    self.analysis_status_label.config(text="Bereit für Analyse", foreground="black")
+                
+                # Update buffer status
+                self.analysis_buffer._update_buffer_status()
         else:
             self.save_results()
             out = self.output_excel or OUTPUT_EXCEL
             messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {out}", parent=self.root)
 
     def skip_image(self):
-        self.current_image_index += 1
-        self.load_current_image()
+        """Skip to next image (buffer will have it ready)."""
+        if self.current_image_index < len(self.image_files) - 1:
+            self.current_image_index += 1
+            self.load_current_image()
+            self.clear_fields()
+            
+            # Check if next image is already analyzed
+            if self.analysis_buffer:
+                result = self.analysis_buffer.get_analysis(self.current_image_index)
+                if result not in ["analyzing", "failed"]:
+                    # Auto-fill if already analyzed
+                    self._apply_analysis_result(result)
+                    self.analysis_status_label.config(text="✓ Bereits analysiert", foreground="green")
+                else:
+                    self.analysis_status_label.config(text="Bereit für Analyse", foreground="black")
+                
+                # Update buffer status
+                self.analysis_buffer._update_buffer_status()
+        else:
+            messagebox.showinfo("Ende", "Sie haben das letzte Bild erreicht.", parent=self.root)
 
     def save_results(self):
         out = self.output_excel or OUTPUT_EXCEL
@@ -892,7 +1141,13 @@ class ImageAnalyzer:
         print("✅ Luisa markiert" if self.luisa_var.get() else "❌ Luisa entfernt")
 
     def run(self):
-        self.root.mainloop()
+        """Run the analyzer with proper cleanup."""
+        try:
+            self.root.mainloop()
+        finally:
+            # Clean up the analysis buffer
+            if self.analysis_buffer:
+                self.analysis_buffer.cleanup()
 
     def _create_folder_icon(self, w=24, h=24):
         """Create a simple folder icon (PIL -> PhotoImage) for button use."""
