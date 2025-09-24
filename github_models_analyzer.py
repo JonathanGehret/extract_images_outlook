@@ -37,9 +37,9 @@ GITHUB_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN", "")
 START_FROM_IMAGE = 1
 
 ANIMAL_SPECIES = [
-    "Bartgeier", "Steinadler", "Kolkabe",
+    "Bartgeier", "Steinadler", "Rabenvogel",
     "Alpendohle", "Fuchs", "Gams", "Steinbock", 
-    "Murmeltier", "Marder", "Reh", "Hirsch", "Rabenkrähe",
+    "Murmeltier", "Marder", "Reh", "Hirsch",
     "Mensch"
 ]
 
@@ -62,9 +62,21 @@ class ImageAnalyzer:
     def setup_gui(self):
         self.root = tk.Tk()
         self.root.title("Kamerafallen Bild-Analyzer - GitHub Models")
-        self.root.geometry("1200x800")
-        # Require a reasonable minimum so controls can expand properly
-        self.root.minsize(900, 600)
+        
+        # Get screen dimensions and set appropriate window size
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Use 85% of screen height, but cap at reasonable limits
+        window_width = min(1200, int(screen_width * 0.9))
+        window_height = min(800, int(screen_height * 0.85))
+        
+        # Center the window on screen
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.root.minsize(1000, 600)
 
         # Top: folder selectors
         folder_frame = ttk.Frame(self.root)
@@ -102,17 +114,61 @@ class ImageAnalyzer:
 
         # Create main frames
         left_frame = ttk.Frame(self.root, width=600)
-        right_frame = ttk.Frame(self.root, width=600)
+        right_container = ttk.Frame(self.root, width=600)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        right_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Left - image
+        # Left - image (fixed, no scrolling)
         ttk.Label(left_frame, text="Bild", font=("Arial", 14)).pack()
         self.image_label = ttk.Label(left_frame)
         self.image_label.pack(pady=10)
 
-        # Right - form
-        ttk.Label(right_frame, text="Bildanalyse", font=("Arial", 14)).pack()
+        # Right - scrollable form
+        # Create canvas and scrollbar for the right side
+        canvas = tk.Canvas(right_container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(right_container, orient="vertical", command=canvas.yview)
+        self.scrollable_frame = ttk.Frame(canvas)
+
+        # Configure scrolling
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Bind mousewheel to canvas for smooth scrolling (cross-platform)
+        def _on_mousewheel(event):
+            # Windows and MacOS
+            if event.delta:
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            # Linux
+            elif event.num == 4:
+                canvas.yview_scroll(-1, "units")
+            elif event.num == 5:
+                canvas.yview_scroll(1, "units")
+            
+        def _bind_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows/Mac
+            canvas.bind_all("<Button-4>", _on_mousewheel)    # Linux
+            canvas.bind_all("<Button-5>", _on_mousewheel)    # Linux
+            
+        def _unbind_from_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Button-4>")
+            canvas.unbind_all("<Button-5>")
+            
+        canvas.bind('<Enter>', _bind_to_mousewheel)
+        canvas.bind('<Leave>', _unbind_from_mousewheel)
+
+        # Now use self.scrollable_frame instead of right_frame for all form elements
+        right_frame = self.scrollable_frame
+        ttk.Label(right_frame, text="Bildanalyse", font=("Arial", 14)).pack(pady=(0, 10))
 
         ttk.Label(right_frame, text="Standort:").pack(anchor=tk.W)
         self.location_var = tk.StringVar()
