@@ -58,16 +58,22 @@ class AnalysisBuffer:
         self.executor = ThreadPoolExecutor(max_workers=5)
         self.buffer_size = 3  # Keep 3 images ahead analyzed
         
-    def get_analysis(self, image_index):
-        """Get analysis result for image, trigger batch if not available."""
-        print(f"DEBUG: Getting analysis for image {image_index}")
+    def get_analysis(self, image_index, force_analysis=False):
+        """Get analysis result for image, trigger batch if not available.
+        
+        Args:
+            image_index: Index of image to analyze
+            force_analysis: If True, forces analysis even if not explicitly requested
+        """
+        print(f"DEBUG: Getting analysis for image {image_index}, force_analysis={force_analysis}")
         print(f"DEBUG: Buffer state - buffered: {len(self.buffer)}, analyzing: {len(self.analyzing)}, failed: {len(self.failed)}")
         
         if image_index in self.buffer:
             result = self.buffer.pop(image_index)
             print(f"DEBUG: Found result in buffer for image {image_index}: {result.get('animals', 'N/A')}")
-            # Trigger next batch analysis
-            self._ensure_buffer_ahead(image_index + 1)
+            # Trigger next batch analysis only if force_analysis is True (from analyze button)
+            if force_analysis:
+                self._ensure_buffer_ahead(image_index + 1)
             return result
         elif image_index in self.analyzing:
             print(f"DEBUG: Image {image_index} is currently being analyzed")
@@ -76,10 +82,14 @@ class AnalysisBuffer:
             print(f"DEBUG: Image {image_index} analysis failed previously")
             return "failed"
         else:
-            print(f"DEBUG: Starting batch analysis from image {image_index}")
-            # Start batch analysis from this image
-            self._start_batch_analysis(image_index)
-            return "analyzing"
+            # Only start analysis if explicitly requested (from analyze button)
+            if force_analysis:
+                print(f"DEBUG: Starting batch analysis from image {image_index}")
+                self._start_batch_analysis(image_index)
+                return "analyzing"
+            else:
+                print(f"DEBUG: Analysis not started for image {image_index} (not forced)")
+                return "not_analyzed"
     
     def _ensure_buffer_ahead(self, current_index):
         """Ensure we have buffer_size images analyzed ahead."""
@@ -192,9 +202,12 @@ class AnalysisBuffer:
     def _update_buffer_status(self):
         """Update buffer status display."""
         if hasattr(self.analyzer, 'buffer_status_label'):
-            status = self.get_buffer_status()
-            buffer_text = f"Buffer: {status['buffered']} bereit, {status['analyzing']} analysieren, {status['failed']} fehlgeschlagen"
-            self.analyzer.buffer_status_label.config(text=buffer_text)
+            if self.analyzer.dummy_mode_var.get():
+                self.analyzer.buffer_status_label.config(text="Buffer: Testmodus - keine KI-Analyse")
+            else:
+                status = self.get_buffer_status()
+                buffer_text = f"Buffer: {status['buffered']} bereit, {status['analyzing']} analysieren, {status['failed']} fehlgeschlagen"
+                self.analyzer.buffer_status_label.config(text=buffer_text)
     
     def get_buffer_status(self):
         """Get current buffer status for display."""
@@ -439,7 +452,8 @@ class ImageAnalyzer:
 
         # Testing mode
         self.dummy_mode_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(right_frame, text="Testdaten verwenden (Testmodus)", variable=self.dummy_mode_var).pack(anchor=tk.W, pady=(10, 0))
+        ttk.Checkbutton(right_frame, text="Testdaten verwenden (Testmodus)", 
+                       variable=self.dummy_mode_var, command=self.on_dummy_mode_toggle).pack(anchor=tk.W, pady=(10, 0))
 
         # Buttons
         button_frame = ttk.Frame(right_frame)
@@ -684,10 +698,16 @@ class ImageAnalyzer:
 
     def analyze_current_image(self):
         """Analyze current image using smart buffer system or dummy data."""
+        print(f"DEBUG: Analyze button pressed - Dummy mode: {self.dummy_mode_var.get()}")
+        
         if self.dummy_mode_var.get():
+            # Use dummy data - no real AI analysis
+            print("DEBUG: Using dummy data, no real analysis")
             self.use_dummy_data()
+            self.analysis_status_label.config(text="✓ Testdaten eingefügt", foreground="green")
             return
             
+        # Real AI analysis mode
         if not self.image_files:
             messagebox.showwarning("Keine Bilder", "Bitte wählen Sie zuerst einen Bilder-Ordner.", parent=self.root)
             return
@@ -696,24 +716,25 @@ class ImageAnalyzer:
             messagebox.showerror("Fehler", "Analysis Buffer nicht initialisiert.", parent=self.root)
             return
 
+        print("DEBUG: Starting real AI analysis with buffer system")
         # Update status
-        self.analysis_status_label.config(text="🔄 Analysiere...", foreground="blue")
+        self.analysis_status_label.config(text="🔄 Analysiere mit KI...", foreground="blue")
         
-        # Get analysis from buffer (will trigger batch if needed)
-        result = self.analysis_buffer.get_analysis(self.current_image_index)
+        # Get analysis from buffer (will trigger batch because analyze button was pressed)
+        result = self.analysis_buffer.get_analysis(self.current_image_index, force_analysis=True)
         
         if result == "analyzing":
             # Analysis in progress, show loading state
-            self.analysis_status_label.config(text="🔄 Analyse läuft... (Batch wird verarbeitet)", foreground="orange")
+            self.analysis_status_label.config(text="🔄 KI-Analyse läuft... (Batch wird verarbeitet)", foreground="orange")
             # The UI will be updated automatically when analysis completes
         elif result == "failed":
             # Analysis failed
-            self.analysis_status_label.config(text="❌ Analyse fehlgeschlagen", foreground="red")
-            messagebox.showerror("Fehler", "Die Analyse für dieses Bild ist fehlgeschlagen.", parent=self.root)
+            self.analysis_status_label.config(text="❌ KI-Analyse fehlgeschlagen", foreground="red")
+            messagebox.showerror("Fehler", "Die KI-Analyse für dieses Bild ist fehlgeschlagen.", parent=self.root)
         else:
             # Analysis result available immediately
             self._apply_analysis_result(result)
-            self.analysis_status_label.config(text="✓ Analyse abgeschlossen", foreground="green")
+            self.analysis_status_label.config(text="✓ KI-Analyse abgeschlossen", foreground="green")
         
         # Update buffer status
         self.analysis_buffer._update_buffer_status()
@@ -740,10 +761,10 @@ class ImageAnalyzer:
             self.load_current_image()
             self.clear_fields()
             
-            # Check if next image is already analyzed
-            if self.analysis_buffer:
-                result = self.analysis_buffer.get_analysis(self.current_image_index)
-                if result not in ["analyzing", "failed"]:
+            # Only use buffer if NOT in dummy mode
+            if self.analysis_buffer and not self.dummy_mode_var.get():
+                result = self.analysis_buffer.get_analysis(self.current_image_index, force_analysis=False)
+                if result not in ["analyzing", "failed", "not_analyzed"]:
                     # Auto-fill if already analyzed
                     print(f"DEBUG: Image {self.current_image_index} already analyzed")
                     self._apply_analysis_result(result)
@@ -753,6 +774,12 @@ class ImageAnalyzer:
                 
                 # Update buffer status
                 self.analysis_buffer._update_buffer_status()
+            else:
+                # In dummy mode or no buffer - just show ready state
+                if self.dummy_mode_var.get():
+                    self.analysis_status_label.config(text="Testmodus - bereit für Dummy-Daten", foreground="blue")
+                else:
+                    self.analysis_status_label.config(text="Bereit für Analyse", foreground="black")
             return True
         else:
             messagebox.showinfo("Ende", "Sie haben das letzte Bild erreicht.", parent=self.root)
@@ -1126,7 +1153,7 @@ class ImageAnalyzer:
             messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {out}", parent=self.root)
 
     def skip_image(self):
-        """Skip to next image (buffer will have it ready)."""
+        """Skip to next image."""
         print("DEBUG: Skip button pressed")
         self._navigate_to_next_image()
 
@@ -1144,6 +1171,19 @@ class ImageAnalyzer:
 
     def on_luisa_toggle(self):
         print("✅ Luisa markiert" if self.luisa_var.get() else "❌ Luisa entfernt")
+
+    def on_dummy_mode_toggle(self):
+        """Handle dummy mode checkbox toggle."""
+        if self.dummy_mode_var.get():
+            print("✅ Testmodus aktiviert - keine KI-Analyse")
+            self.analysis_status_label.config(text="Testmodus - bereit für Dummy-Daten", foreground="blue")
+        else:
+            print("❌ Testmodus deaktiviert - KI-Analyse verfügbar")
+            self.analysis_status_label.config(text="Bereit für KI-Analyse", foreground="black")
+        
+        # Update buffer status display
+        if self.analysis_buffer:
+            self.analysis_buffer._update_buffer_status()
 
     def run(self):
         """Run the analyzer with proper cleanup."""
