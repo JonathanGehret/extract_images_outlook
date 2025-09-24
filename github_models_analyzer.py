@@ -640,6 +640,8 @@ class ImageAnalyzer:
             self.image_label.configure(image='')
         progress = f"Image {self.current_image_index + 1} of {len(self.image_files)}: {image_file}"
         self.progress_var.set(progress)
+        # Update filename preview for current image
+        self.update_filename_preview()
         # DON'T automatically clear fields - let navigation methods handle this
 
     def update_animals_summary(self, *args):
@@ -660,29 +662,30 @@ class ImageAnalyzer:
             if not self.image_files or self.current_image_index >= len(self.image_files):
                 self.filename_preview_var.set("")
                 return
-                
-            image_file = self.image_files[self.current_image_index]
-            location = self.location_var.get().strip()
-            date = self.date_var.get().strip()
-            species1 = self.species1_var.get().strip()
-            count1 = self.count1_var.get().strip()
-            species2 = self.species2_var.get().strip()
-            count2 = self.count2_var.get().strip()
-            species3 = self.species3_var.get().strip()  # New
-            count3 = self.count3_var.get().strip()      # New
-            species4 = self.species4_var.get().strip()  # New
-            count4 = self.count4_var.get().strip()      # New
-            generl_checked = self.generl_var.get()
-            luisa_checked = self.luisa_var.get()
             
-            if location and location in ['FP1', 'FP2', 'FP3', 'Nische'] and date:
+            # If we have an Excel entry, show the actual filename that will be used for renaming
+            if hasattr(self, 'current_excel_entry') and self.current_excel_entry:
+                # Generate the filename that will be used based on Excel data
+                data = self.current_excel_entry
                 try:
-                    new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked)  # Updated
-                    self.filename_preview_var.set(f"🔄 Neuer Name: {new_filename}")
-                except Exception:
-                    self.filename_preview_var.set("⚠ Ungültige Daten für Umbenennung")
+                    # Generate the filename that will be created (without actually renaming)
+                    new_filename = self._generate_preview_filename(data)
+                    if new_filename:
+                        self.filename_preview_var.set(f"✅ Neuer Name: {new_filename}")
+                    else:
+                        self.filename_preview_var.set("⚠ Fehler beim Generieren des Dateinamens")
+                except Exception as e:
+                    print(f"Error generating preview filename: {e}")
+                    self.filename_preview_var.set("⚠ Fehler beim Generieren des Dateinamens")
             else:
-                self.filename_preview_var.set("ℹ Standort und Datum erforderlich für Umbenennung")
+                # Before confirmation, just show "Neuer Name:" without any filename
+                location = self.location_var.get().strip()
+                date = self.date_var.get().strip()
+                
+                if location and location in ['FP1', 'FP2', 'FP3', 'Nische'] and date:
+                    self.filename_preview_var.set("🔄 Neuer Name:")
+                else:
+                    self.filename_preview_var.set("ℹ Standort und Datum erforderlich für Umbenennung")
         except Exception:
             self.filename_preview_var.set("")
 
@@ -959,6 +962,57 @@ class ImageAnalyzer:
         """Wrapper method for button compatibility"""
         self.confirm_and_save_to_excel()
 
+    def _generate_preview_filename(self, data):
+        """Generate the preview filename based on Excel entry data (without actually renaming)"""
+        try:
+            location = data['Standort']
+            date = data['Datum']
+            species1 = data['Art 1']
+            count1 = data['Anzahl 1']
+            species2 = data['Art 2']
+            count2 = data['Anzahl 2']
+            new_id = data['Nr. ']
+            generl_checked = data['Generl'] == 'X'
+            luisa_checked = data['Luisa'] == 'X'
+            
+            # Generate animals string
+            animals = []
+            if species1:
+                animals.append(f"{species1}_{count1 or '1'}")
+            if species2:
+                animals.append(f"{species2}_{count2 or '1'}")
+            animal_str = "_".join(animals) if animals else "Unknown"
+            
+            # Format date
+            try:
+                if '.' in date:
+                    day, month, year = date.split('.')
+                    short_year = year[-2:] if len(year) == 4 else year
+                    date_str = f"{month}.{day}.{short_year}"
+                else:
+                    date_str = date
+            except Exception:
+                date_str = date
+            
+            # Special names
+            special_names = []
+            if generl_checked:
+                special_names.append("Generl")
+            if luisa_checked:
+                special_names.append("Luisa")
+            special_str = "_".join(special_names) if special_names else ""
+            
+            # Generate filename
+            if special_str:
+                new_name = f"{location}_{new_id:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
+            else:
+                new_name = f"{location}_{new_id:04d}_{date_str}_{animal_str}.jpeg"
+            
+            return new_name
+        except Exception as e:
+            print(f"Error generating preview filename: {e}")
+            return None
+
     def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked):  # Updated signature
         import re
         
@@ -1152,6 +1206,10 @@ class ImageAnalyzer:
         
         # Enable the rename button now that we have an Excel entry
         self.rename_button.config(state='normal')
+        
+        # Update the filename preview to show the actual filename that will be used
+        self.update_filename_preview()
+        
         print(f"✅ Analysis saved to Excel with ID {new_id} - Rename button enabled")
 
     def next_image(self):
@@ -1161,6 +1219,9 @@ class ImageAnalyzer:
         # Reset Excel entry and disable rename button for new image
         self.current_excel_entry = None
         self.rename_button.config(state='disabled')
+        
+        # Update filename preview for the new image
+        self.update_filename_preview()
         
         if not self._navigate_to_next_image():
             # We've reached the end
