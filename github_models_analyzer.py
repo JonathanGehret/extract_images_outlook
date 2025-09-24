@@ -230,6 +230,7 @@ class ImageAnalyzer:
         self.current_image_index = START_FROM_IMAGE - 1
         self.image_files = []
         self.results = []
+        self.current_excel_entry = None  # Track current image's Excel entry for renaming
         # Simple guards to avoid double-opening dialogs
         self._dialog_open = False
         self._manager_opening = False
@@ -455,13 +456,22 @@ class ImageAnalyzer:
         ttk.Checkbutton(right_frame, text="Testdaten verwenden (Testmodus)", 
                        variable=self.dummy_mode_var, command=self.on_dummy_mode_toggle).pack(anchor=tk.W, pady=(10, 0))
 
-        # Buttons
+        # Buttons - reorganized workflow
         button_frame = ttk.Frame(right_frame)
         button_frame.pack(pady=20)
-        ttk.Button(button_frame, text="Aktuelles Bild analysieren", command=self.analyze_current_image).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Bild umbenennen", command=self.rename_current_image).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Bestätigen & Weiter", command=self.confirm_and_next).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Bild überspringen", command=self.skip_image).pack(side=tk.LEFT, padx=5)
+        
+        # Row 1: Analysis and confirmation
+        row1 = ttk.Frame(button_frame)
+        row1.pack(pady=(0, 5))
+        ttk.Button(row1, text="Aktuelles Bild analysieren", command=self.analyze_current_image).pack(side=tk.LEFT, padx=5)
+        ttk.Button(row1, text="Bestätigen (in Excel speichern)", command=self.confirm_entry).pack(side=tk.LEFT, padx=5)
+        
+        # Row 2: Image actions and navigation
+        row2 = ttk.Frame(button_frame)
+        row2.pack()
+        self.rename_button = ttk.Button(row2, text="Bild umbenennen", command=self.rename_current_image, state='disabled')
+        self.rename_button.pack(side=tk.LEFT, padx=5)
+        ttk.Button(row2, text="Nächstes Bild", command=self.next_image).pack(side=tk.LEFT, padx=5)
 
         # Analysis and buffer status
         status_frame = ttk.Frame(right_frame)
@@ -906,51 +916,48 @@ class ImageAnalyzer:
                 count_vars[i].set("1")
 
     def rename_current_image(self):
-        """Rename the current image based on the form data using the same logic as the renamer script."""
+        """Rename the current image using the Excel entry data"""
+        if not self.current_excel_entry:
+            messagebox.showerror("Fehler", "Bitte bestätigen Sie zuerst die Analyse (in Excel speichern)", parent=self.root)
+            return
+            
         if not self.image_files:
-            messagebox.showerror("Fehler", "Keine Bilder geladen", parent=self.root)
             return
             
         image_file = self.image_files[self.current_image_index]
-        location = self.location_var.get().strip()
-        date = self.date_var.get().strip()
-        species1 = self.species1_var.get().strip()
-        count1 = self.count1_var.get().strip()
-        species2 = self.species2_var.get().strip()
-        count2 = self.count2_var.get().strip()
-        species3 = self.species3_var.get().strip()  # New
-        count3 = self.count3_var.get().strip()      # New
-        species4 = self.species4_var.get().strip()  # New
-        count4 = self.count4_var.get().strip()      # New
-        generl_checked = self.generl_var.get()
-        luisa_checked = self.luisa_var.get()
+        data = self.current_excel_entry
         
-        # Validate required fields
-        if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
-            messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)", parent=self.root)
-            return
-        if not date:
-            messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein", parent=self.root)
+        # Rename the image file using the Excel data
+        new_image_name = gm_io.create_backup_and_rename_image(
+            self.images_folder, image_file, 
+            data['Standort'], data['Datum'], 
+            data['Art 1'], data['Anzahl 1'], 
+            data['Art 2'], data['Anzahl 2'], 
+            data['Nr. '], 
+            data['Generl'] == 'X', 
+            data['Luisa'] == 'X'
+        )
+        
+        if new_image_name is None:
+            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes", parent=self.root)
             return
             
-        try:
-            new_filename = self._generate_new_filename(image_file, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked)  # Updated
-            
-            # Show preview and ask for confirmation
-            confirm_msg = f"Bild umbenennen von:\n{image_file}\n\nzu:\n{new_filename}\n\nFortfahren?"
-            if not messagebox.askyesno("Umbenennen bestätigen", confirm_msg, parent=self.root):
-                return
-                
-            if self._rename_image_file(image_file, new_filename):
-                # Update the image list and current display
-                self.refresh_image_files()
-                # Try to find the renamed file in the list
-                if new_filename in self.image_files:
-                    self.current_image_index = self.image_files.index(new_filename)
-                self.load_current_image()
-                messagebox.showinfo("Erfolg", f"✅ Bild erfolgreich umbenannt!\n\nNeuer Name:\n{new_filename}", parent=self.root)
-        except Exception as e:
-            messagebox.showerror("Fehler", f"❌ Fehler beim Umbenennen:\n{e}", parent=self.root)
+        # Update the Excel entry with the new filename
+        data['filename'] = new_image_name
+        gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, data['Standort'], data)
+        
+        # Update the image files list to reflect the rename
+        new_path = os.path.join(self.images_folder, new_image_name)
+        self.image_files[self.current_image_index] = new_path
+        
+        # Disable rename button since this image is now processed
+        self.rename_button.config(state='disabled')
+        print(f"✅ Image renamed to: {new_image_name}")
+        messagebox.showinfo("Erfolg", f"✅ Bild erfolgreich umbenannt!\n\nNeuer Name:\n{new_image_name}", parent=self.root)
+
+    def confirm_entry(self):
+        """Wrapper method for button compatibility"""
+        self.confirm_and_save_to_excel()
 
     def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked):  # Updated signature
         import re
@@ -1076,7 +1083,8 @@ class ImageAnalyzer:
         
         return True
 
-    def confirm_and_next(self):
+    def confirm_and_save_to_excel(self):
+        """Confirm current image analysis and save to Excel (enables rename button)"""
         if not self.image_files:
             return
         image_file = self.image_files[self.current_image_index]
@@ -1105,14 +1113,8 @@ class ImageAnalyzer:
             messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein", parent=self.root)
             return
 
+        # Get the next ID for this location from Excel
         new_id = gm_io.get_next_id_for_location(self.output_excel or OUTPUT_EXCEL, location)
-
-        new_image_name = gm_io.create_backup_and_rename_image(
-            self.images_folder, image_file, location, date, species1, count1, species2, count2, new_id, generl_checked, luisa_checked
-        )
-        if new_image_name is None:
-            messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes. Eintrag wird trotzdem gespeichert.", parent=self.root)
-            new_image_name = image_file
 
         data = {
             'Nr. ': new_id,
@@ -1137,15 +1139,29 @@ class ImageAnalyzer:
             'Luisa': 'X' if luisa_checked else '',
             'Korrektur': '',
             'animals_detected': animals,
-            'filename': new_image_name,
+            'filename': os.path.basename(image_file),  # Keep original filename for now
             'original_filename': image_file
         }
 
+        # Save to Excel first
         self.results.append(data)
         gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, location, data)
+        
+        # Store the Excel entry for renaming
+        self.current_excel_entry = data
+        
+        # Enable the rename button now that we have an Excel entry
+        self.rename_button.config(state='normal')
+        print(f"✅ Analysis saved to Excel with ID {new_id} - Rename button enabled")
 
-        # Advance to next image
-        print("DEBUG: Confirm and Next button pressed")
+    def next_image(self):
+        """Navigate to next image"""
+        print("DEBUG: Next image button pressed")
+        
+        # Reset Excel entry and disable rename button for new image
+        self.current_excel_entry = None
+        self.rename_button.config(state='disabled')
+        
         if not self._navigate_to_next_image():
             # We've reached the end
             self.save_results()
