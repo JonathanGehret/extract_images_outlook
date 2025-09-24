@@ -60,16 +60,23 @@ class AnalysisBuffer:
         
     def get_analysis(self, image_index):
         """Get analysis result for image, trigger batch if not available."""
+        print(f"DEBUG: Getting analysis for image {image_index}")
+        print(f"DEBUG: Buffer state - buffered: {len(self.buffer)}, analyzing: {len(self.analyzing)}, failed: {len(self.failed)}")
+        
         if image_index in self.buffer:
             result = self.buffer.pop(image_index)
+            print(f"DEBUG: Found result in buffer for image {image_index}: {result.get('animals', 'N/A')}")
             # Trigger next batch analysis
             self._ensure_buffer_ahead(image_index + 1)
             return result
         elif image_index in self.analyzing:
+            print(f"DEBUG: Image {image_index} is currently being analyzed")
             return "analyzing"
         elif image_index in self.failed:
+            print(f"DEBUG: Image {image_index} analysis failed previously")
             return "failed"
         else:
+            print(f"DEBUG: Starting batch analysis from image {image_index}")
             # Start batch analysis from this image
             self._start_batch_analysis(image_index)
             return "analyzing"
@@ -222,6 +229,9 @@ class ImageAnalyzer:
         
         # Initialize buffer after image files are loaded
         self.analysis_buffer = AnalysisBuffer(self)
+        
+        # Clear fields for the first image (since no analysis exists yet)
+        self.clear_fields()
 
     def setup_gui(self):
         self.root = tk.Tk()
@@ -606,7 +616,7 @@ class ImageAnalyzer:
             self.image_label.configure(image='')
         progress = f"Image {self.current_image_index + 1} of {len(self.image_files)}: {image_file}"
         self.progress_var.set(progress)
-        self.clear_fields()
+        # DON'T automatically clear fields - let navigation methods handle this
 
     def update_animals_summary(self, *args):
         parts = []
@@ -719,6 +729,34 @@ class ImageAnalyzer:
             self.date_var.set(result['date'])
         if result.get('time'):
             self.time_var.set(result['time'])
+
+    def _navigate_to_next_image(self):
+        """Navigate to the next image with proper buffer handling."""
+        if self.current_image_index < len(self.image_files) - 1:
+            self.current_image_index += 1
+            print(f"DEBUG: Navigating to image {self.current_image_index + 1}/{len(self.image_files)}")
+            
+            # Load the image and clear fields
+            self.load_current_image()
+            self.clear_fields()
+            
+            # Check if next image is already analyzed
+            if self.analysis_buffer:
+                result = self.analysis_buffer.get_analysis(self.current_image_index)
+                if result not in ["analyzing", "failed"]:
+                    # Auto-fill if already analyzed
+                    print(f"DEBUG: Image {self.current_image_index} already analyzed")
+                    self._apply_analysis_result(result)
+                    self.analysis_status_label.config(text="✓ Bereits analysiert", foreground="green")
+                else:
+                    self.analysis_status_label.config(text="Bereit für Analyse", foreground="black")
+                
+                # Update buffer status
+                self.analysis_buffer._update_buffer_status()
+            return True
+        else:
+            messagebox.showinfo("Ende", "Sie haben das letzte Bild erreicht.", parent=self.root)
+            return False
 
     def use_dummy_data(self):
         import random
@@ -1080,50 +1118,17 @@ class ImageAnalyzer:
         gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, location, data)
 
         # Advance to next image
-        if self.current_image_index < len(self.image_files) - 1:
-            self.current_image_index += 1
-            self.refresh_image_files()
-            self.load_current_image()
-            self.clear_fields()
-            
-            # Check if next image is already analyzed
-            if self.analysis_buffer:
-                result = self.analysis_buffer.get_analysis(self.current_image_index)
-                if result not in ["analyzing", "failed"]:
-                    # Auto-fill if already analyzed
-                    self._apply_analysis_result(result)
-                    self.analysis_status_label.config(text="✓ Bereits analysiert", foreground="green")
-                else:
-                    self.analysis_status_label.config(text="Bereit für Analyse", foreground="black")
-                
-                # Update buffer status
-                self.analysis_buffer._update_buffer_status()
-        else:
+        print("DEBUG: Confirm and Next button pressed")
+        if not self._navigate_to_next_image():
+            # We've reached the end
             self.save_results()
             out = self.output_excel or OUTPUT_EXCEL
             messagebox.showinfo("Fertig", f"Analyse abgeschlossen! Ergebnisse gespeichert in {out}", parent=self.root)
 
     def skip_image(self):
         """Skip to next image (buffer will have it ready)."""
-        if self.current_image_index < len(self.image_files) - 1:
-            self.current_image_index += 1
-            self.load_current_image()
-            self.clear_fields()
-            
-            # Check if next image is already analyzed
-            if self.analysis_buffer:
-                result = self.analysis_buffer.get_analysis(self.current_image_index)
-                if result not in ["analyzing", "failed"]:
-                    # Auto-fill if already analyzed
-                    self._apply_analysis_result(result)
-                    self.analysis_status_label.config(text="✓ Bereits analysiert", foreground="green")
-                else:
-                    self.analysis_status_label.config(text="Bereit für Analyse", foreground="black")
-                
-                # Update buffer status
-                self.analysis_buffer._update_buffer_status()
-        else:
-            messagebox.showinfo("Ende", "Sie haben das letzte Bild erreicht.", parent=self.root)
+        print("DEBUG: Skip button pressed")
+        self._navigate_to_next_image()
 
     def save_results(self):
         out = self.output_excel or OUTPUT_EXCEL
