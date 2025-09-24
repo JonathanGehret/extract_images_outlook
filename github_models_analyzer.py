@@ -1312,13 +1312,30 @@ class ImageAnalyzer:
 
     def _create_folder_icon(self, w=24, h=24):
         """Create a simple folder icon (PIL -> PhotoImage) for button use."""
-        img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        # folder base
-        draw.rectangle([2, 8, w - 2, h - 3], fill=(220, 180, 60), outline=(140, 100, 30))
-        # tab
-        draw.rectangle([2, 4, w // 2, 10], fill=(240, 200, 80), outline=(140, 100, 30))
-        return ImageTk.PhotoImage(img)
+        try:
+            # Check if we can create images in the current environment
+            if not hasattr(self, 'root') or not self.root:
+                raise Exception("No root window available")
+                
+            img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            # folder base
+            draw.rectangle([2, 8, w - 2, h - 3], fill=(220, 180, 60), outline=(140, 100, 30))
+            # tab
+            draw.rectangle([2, 4, w // 2, 10], fill=(240, 200, 80), outline=(140, 100, 30))
+            
+            # Create PhotoImage with explicit master
+            photo = ImageTk.PhotoImage(img, master=self.root)
+            
+            # Keep a reference to prevent garbage collection
+            if not hasattr(self, '_image_refs'):
+                self._image_refs = []
+            self._image_refs.append(photo)
+            
+            return photo
+        except Exception as e:
+            print(f"Failed to create folder icon: {e}")
+            return None
 
 
 def start_analyzer(images_folder=None, output_excel=None):

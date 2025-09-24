@@ -381,15 +381,31 @@ class Launcher(tk.Tk):
                     if token_var.get().strip():
                         os.environ['GITHUB_MODELS_TOKEN'] = token_var.get().strip()
                     
-                    # Start analyzer in thread with parameters
-                    def run_analyzer():
-                        github_models_analyzer.start_analyzer(
-                            images_folder=images_folder, 
-                            output_excel=excel_output
-                        )
+                    # Close this dialog first to avoid conflicts
+                    dlg.destroy()
                     
-                    threading.Thread(target=run_analyzer, daemon=True).start()
-                    messagebox.showinfo('Gestartet', 'Analyzer wurde gestartet', parent=dlg)
+                    # Start analyzer with debugging
+                    print("🚀 Starting analyzer with:")
+                    print(f"   Images folder: {images_folder}")
+                    print(f"   Excel output: {excel_output}")
+                    
+                    # Schedule analyzer start in main thread after dialog closes
+                    def start_analyzer_delayed():
+                        try:
+                            print("📱 Creating analyzer instance...")
+                            github_models_analyzer.start_analyzer(
+                                images_folder=images_folder, 
+                                output_excel=excel_output
+                            )
+                            print("✅ Analyzer started successfully")
+                        except Exception as e:
+                            print(f"❌ Error starting analyzer: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            messagebox.showerror('Fehler', f'Fehler beim Starten des Analyzers: {e}')
+                    
+                    # Give main thread time to process dialog closure, then start analyzer
+                    self.after(200, start_analyzer_delayed)
                 except Exception as e:
                     messagebox.showerror('Fehler', f'Fehler beim Starten des Analyzers: {e}', parent=dlg)
             else:
