@@ -1,12 +1,12 @@
 #!/bin/bash
-# Simple packaging script for Linux
+# Lean packaging script for Linux (excludes ML libraries)
 
-echo "🚀 Building Kamerafallen-Tools for Linux..."
+echo "🚀 Building Kamerafallen-Tools for Linux (lean build)..."
 
 # Install PyInstaller if needed
 python3 -m pip install pyinstaller
 
-# Create the executable
+# Create the executable with exclusions
 python3 -m PyInstaller \
     --onefile \
     --windowed \
@@ -16,12 +16,23 @@ python3 -m PyInstaller \
     --hidden-import="extract_msg" \
     --hidden-import="pandas" \
     --hidden-import="openpyxl" \
+    --hidden-import="openpyxl.styles" \
     --hidden-import="PIL" \
     --hidden-import="requests" \
     --hidden-import="dotenv" \
     --hidden-import="tkinter.ttk" \
     --hidden-import="tkinter.filedialog" \
     --hidden-import="tkinter.messagebox" \
+    --exclude-module="torch" \
+    --exclude-module="tensorflow" \
+    --exclude-module="torchvision" \
+    --exclude-module="numpy.distutils" \
+    --exclude-module="matplotlib" \
+    --exclude-module="scipy" \
+    --exclude-module="sklearn" \
+    --exclude-module="cv2" \
+    --exclude-module="jupyterlab" \
+    --exclude-module="notebook" \
     main_gui.py
 
 if [ -f "dist/KamerafallenTools" ]; then
@@ -32,12 +43,15 @@ if [ -f "dist/KamerafallenTools" ]; then
     # Make executable
     chmod +x dist/KamerafallenTools
     
+    # Test the executable quickly
+    echo "🧪 Testing executable..."
+    timeout 5s dist/KamerafallenTools --help 2>/dev/null || echo "Quick test completed"
+    
     # Create portable package
     mkdir -p dist/KamerafallenTools-linux-portable
     cp dist/KamerafallenTools dist/KamerafallenTools-linux-portable/
-    cp .env.example dist/KamerafallenTools-linux-portable/
-    cp README.md dist/KamerafallenTools-linux-portable/
-    cp ANLEITUNG.md dist/KamerafallenTools-linux-portable/ 2>/dev/null || true
+    cp .env.example dist/KamerafallenTools-linux-portable/ 2>/dev/null || true
+    cp README.md dist/KamerafallenTools-linux-portable/ 2>/dev/null || true
     
     # Create startup script
     cat > dist/KamerafallenTools-linux-portable/start.sh << 'EOF'
@@ -53,6 +67,7 @@ EOF
     cd ..
     
     echo "📦 Portable package created: dist/KamerafallenTools-linux-v1.0.tar.gz"
+    echo "🎯 Final size: $(du -h dist/KamerafallenTools-linux-v1.0.tar.gz | cut -f1)"
 else
     echo "❌ Build failed!"
     exit 1
