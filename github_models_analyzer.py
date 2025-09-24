@@ -45,9 +45,10 @@ ANIMAL_SPECIES = [
 
 
 class ImageAnalyzer:
-    def __init__(self):
-        self.images_folder = IMAGES_FOLDER
-        self.output_excel = OUTPUT_EXCEL
+    def __init__(self, images_folder=None, output_excel=None):
+        # Accept parameters from launcher, fallback to environment/config
+        self.images_folder = images_folder or IMAGES_FOLDER
+        self.output_excel = output_excel or OUTPUT_EXCEL
         self.current_image_index = START_FROM_IMAGE - 1
         self.image_files = []
         self.results = []
@@ -848,9 +849,21 @@ class ImageAnalyzer:
         return ImageTk.PhotoImage(img)
 
 
+def start_analyzer(images_folder=None, output_excel=None):
+    """Start the analyzer with optional folder and output file parameters.
+    
+    This function can be called from other modules to launch the analyzer
+    with pre-selected folders, bypassing the environment variable approach.
+    """
+    analyzer = ImageAnalyzer(images_folder=images_folder, output_excel=output_excel)
+    analyzer.run()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--no-gui', action='store_true', help='Schneller Test ohne GUI ausführen')
+    parser.add_argument('--images-folder', help='Path to images folder')
+    parser.add_argument('--output-excel', help='Path to output Excel file')
     args = parser.parse_args()
 
     if not GITHUB_TOKEN:
@@ -860,5 +873,9 @@ if __name__ == "__main__":
         print("Test ohne GUI: Token vorhanden:", bool(GITHUB_TOKEN))
         sys.exit(0)
 
-    analyzer = ImageAnalyzer()
+    # Use command line arguments if provided, otherwise fall back to environment
+    analyzer = ImageAnalyzer(
+        images_folder=args.images_folder if hasattr(args, 'images_folder') else None,
+        output_excel=args.output_excel if hasattr(args, 'output_excel') else None
+    )
     analyzer.run()

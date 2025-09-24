@@ -370,16 +370,25 @@ class Launcher(tk.Tk):
 
             # Launch analyzer - handle both packaged and development environments
             if hasattr(sys, '_MEIPASS'):
-                # In packaged executable, import and run directly
+                # In packaged executable, import and run directly with parameters
                 try:
-                    # Set environment variables before importing
-                    for key, value in env.items():
-                        os.environ[key] = value
-                    
-                    # Import and run analyzer directly
+                    # Import and run analyzer with selected folders
                     import github_models_analyzer
-                    analyzer = github_models_analyzer.ImageAnalyzer()
-                    threading.Thread(target=analyzer.run, daemon=True).start()
+                    images_folder = images_var.get().strip() or None
+                    excel_output = out_var.get().strip() or None
+                    
+                    # Set token in environment if provided
+                    if token_var.get().strip():
+                        os.environ['GITHUB_MODELS_TOKEN'] = token_var.get().strip()
+                    
+                    # Start analyzer in thread with parameters
+                    def run_analyzer():
+                        github_models_analyzer.start_analyzer(
+                            images_folder=images_folder, 
+                            output_excel=excel_output
+                        )
+                    
+                    threading.Thread(target=run_analyzer, daemon=True).start()
                     messagebox.showinfo('Gestartet', 'Analyzer wurde gestartet', parent=dlg)
                 except Exception as e:
                     messagebox.showerror('Fehler', f'Fehler beim Starten des Analyzers: {e}', parent=dlg)
