@@ -630,14 +630,26 @@ class ImageAnalyzer:
         images_folder = self.images_folder or IMAGES_FOLDER
         image_path = os.path.join(images_folder, image_file)
         try:
+            # Clear any previous image reference first
+            if hasattr(self, 'current_photo_image'):
+                del self.current_photo_image
+            
             image = Image.open(image_path)
-            image.thumbnail((500, 400))
-            photo = ImageTk.PhotoImage(image)
-            self.image_label.configure(image=photo)
-            self.image_label.image = photo
+            # Convert to RGB to avoid palette issues in bundled executables
+            if image.mode in ('RGBA', 'LA', 'P'):
+                image = image.convert('RGB')
+            image.thumbnail((500, 400), Image.Resampling.LANCZOS)
+            
+            # Store reference to prevent garbage collection in bundled environment
+            self.current_photo_image = ImageTk.PhotoImage(image)
+            self.image_label.configure(image=self.current_photo_image)
+            # Keep additional reference for tkinter
+            self.image_label.image = self.current_photo_image
         except Exception as e:
             print(f"Fehler beim Laden des Bildes {image_path}: {e}")
             self.image_label.configure(image='')
+            if hasattr(self, 'current_photo_image'):
+                del self.current_photo_image
         progress = f"Image {self.current_image_index + 1} of {len(self.image_files)}: {image_file}"
         self.progress_var.set(progress)
         # Update filename preview for current image
@@ -1317,17 +1329,18 @@ class ImageAnalyzer:
             if not hasattr(self, 'root') or not self.root:
                 raise Exception("No root window available")
                 
-            img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+            # Create image in RGB mode for better bundled executable compatibility
+            img = Image.new('RGB', (w, h), (240, 240, 240))
             draw = ImageDraw.Draw(img)
             # folder base
             draw.rectangle([2, 8, w - 2, h - 3], fill=(220, 180, 60), outline=(140, 100, 30))
             # tab
             draw.rectangle([2, 4, w // 2, 10], fill=(240, 200, 80), outline=(140, 100, 30))
             
-            # Create PhotoImage with explicit master
+            # Create PhotoImage with explicit master reference
             photo = ImageTk.PhotoImage(img, master=self.root)
             
-            # Keep a reference to prevent garbage collection
+            # Keep a strong reference to prevent garbage collection in bundled environment
             if not hasattr(self, '_image_refs'):
                 self._image_refs = []
             self._image_refs.append(photo)
