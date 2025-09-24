@@ -599,7 +599,7 @@ class Launcher(tk.Tk):
             
             # Add pattern variable after imports
             import_lines.append('')
-            import_lines.append(f'# Custom image naming pattern from GUI')
+            import_lines.append('# Custom image naming pattern from GUI')
             import_lines.append(f'NEW_NAME_PATTERN = r"{pattern}"')
             import_lines.append('')
             

@@ -5,8 +5,8 @@ a = Analysis(
     ['main_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[('*.py', '.')],
+    hiddenimports=['PIL._tkinter_finder', 'extract_msg', 'pandas', 'openpyxl', 'PIL', 'requests', 'dotenv', 'tkinter.ttk', 'tkinter.filedialog', 'tkinter.messagebox'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -35,5 +35,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='bg_fotos_icon.ico',
 )
