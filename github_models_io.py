@@ -114,25 +114,107 @@ def get_next_id_for_location(output_excel: str, location: str):
         return 1
 
 
-def save_single_result(output_excel: str, location: str, data: dict):
-    expected_columns = [
-        'Nr. ', 'Standort', 'Datum', 'Uhrzeit', 'Dagmar', 'Recka', 'Unbestimmt',
-        'Aktivität', 'Art 1', 'Anzahl 1', 'Art 2', 'Anzahl 2', 'Interaktion', 
-        'Sonstiges', 'General', 'Luisa', 'Korrektur'
-    ]
-
+def save_single_result(excel_path, location, data):
+    """Save a single result to Excel while preserving ALL original formatting."""
+    import openpyxl
+    
     try:
-        filtered_data = {col: data.get(col, '') for col in expected_columns}
-        new_row = pd.DataFrame([filtered_data])
+        # Open existing workbook or create new one
         try:
-            existing_df = pd.read_excel(output_excel, sheet_name=location)
-            existing_df = existing_df.reindex(columns=expected_columns, fill_value='')
-            combined_df = pd.concat([existing_df, new_row], ignore_index=True)
-        except Exception:
-            combined_df = new_row
-
-        with pd.ExcelWriter(output_excel, mode='a', if_sheet_exists='replace') as writer:
-            combined_df.to_excel(writer, sheet_name=location, index=False)
+            workbook = openpyxl.load_workbook(excel_path)
+        except FileNotFoundError:
+            # Create new workbook with standard structure
+            workbook = openpyxl.Workbook()
+            # Remove default sheet
+            if 'Sheet' in workbook.sheetnames:
+                workbook.remove(workbook['Sheet'])
+            
+            # Create sheets for each location
+            for loc in ['FP1', 'FP2', 'FP3', 'Nische']:
+                ws = workbook.create_sheet(loc)
+                # Add standard headers
+                headers = ['Nr. ', 'Datum', 'Uhrzeit', 'Generl', 'Luisa', 'Unbestimmt', 
+                          'Aktivität', 'Art 1', 'Anz. 1', 'Art 2', 'Anz. 2', 'Interaktion', 'Sonstiges']
+                ws.append(headers)
+        
+        # Get or create the worksheet for this location
+        if location not in workbook.sheetnames:
+            ws = workbook.create_sheet(location)
+            # Add headers if new sheet
+            headers = ['Nr. ', 'Datum', 'Uhrzeit', 'Generl', 'Luisa', 'Unbestimmt', 
+                      'Aktivität', 'Art 1', 'Anz. 1', 'Art 2', 'Anz. 2', 'Interaktion', 'Sonstiges']
+            ws.append(headers)
+        else:
+            ws = workbook[location]
+        
+        # Find the actual last row with data (not just max_row which can be misleading)
+        actual_last_row = 1  # Start with header row
+        for row_num in range(2, ws.max_row + 1):  # Start from row 2 (after headers)
+            # Check if any cell in this row has actual data
+            has_data = False
+            for col_num in range(1, ws.max_column + 1):
+                cell_value = ws.cell(row=row_num, column=col_num).value
+                if cell_value is not None and str(cell_value).strip():
+                    has_data = True
+                    break
+            
+            if has_data:
+                actual_last_row = row_num
+            # If we find several empty rows in a row, we can break early
+            elif row_num > actual_last_row + 10:  # Allow some gap but not too much
+                break
+        
+        # Next row is right after the actual last row with data
+        next_row = actual_last_row + 1
+        
+        # Read existing headers from row 1
+        headers = []
+        for col in range(1, ws.max_column + 1):
+            header_cell = ws.cell(row=1, column=col)
+            headers.append(header_cell.value or '')
+        
+        # Create column mapping (from data keys to Excel headers)
+        column_mapping = {
+            'Nr. ': 'Nr. ',
+            'Datum': 'Datum', 
+            'Uhrzeit': 'Uhrzeit',
+            'Generl': 'Generl',
+            'Luisa': 'Luisa', 
+            'Unbestimmt': 'Unbestimmt',
+            'Aktivität': 'Aktivität',
+            'Art 1': 'Art 1',
+            'Anzahl 1': 'Anz. 1',  # Map data key to Excel header
+            'Art 2': 'Art 2',
+            'Anzahl 2': 'Anz. 2',  # Map data key to Excel header
+            'Art 3': 'Art 3',      # New
+            'Anzahl 3': 'Anz. 3',  # New
+            'Art 4': 'Art 4',      # New
+            'Anzahl 4': 'Anz. 4',  # New
+            'Interaktion': 'Interaktion',
+            'Sonstiges': 'Sonstiges'
+        }
+        
+        # Write data to the new row
+        for col_idx, header in enumerate(headers, 1):
+            # Find matching data key for this Excel header
+            data_key = None
+            for data_k, excel_h in column_mapping.items():
+                if excel_h == header:
+                    data_key = data_k
+                    break
+            
+            # Write the data value if we have a match
+            if data_key and data_key in data:
+                cell = ws.cell(row=next_row, column=col_idx)
+                cell.value = data[data_key]
+        
+        # Save the workbook (preserves ALL original formatting)
+        workbook.save(excel_path)
+        print(f"✅ Data saved to {excel_path} (sheet: {location}) at row {next_row} - formatting preserved")
         return True
-    except Exception:
-        return False
+        
+    except Exception as e:
+        print(f"❌ Error saving to Excel: {e}")
+        import traceback
+        traceback.print_exc()
+        raise

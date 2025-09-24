@@ -1141,25 +1141,14 @@ class ImageAnalyzer:
         """Confirm current image analysis and save to Excel (enables rename button)"""
         if not self.image_files:
             return
+            
+        # Collect data from GUI fields
         image_file = self.image_files[self.current_image_index]
         location = self.location_var.get()
         date = self.date_var.get()
         time_str = self.time_var.get()
-        animals = self.animals_text.get(1.0, tk.END).strip()
-        aktivitat = self.aktivitat_var.get()
-        interaktion = self.interaktion_var.get()
-        sonstiges = self.sonstiges_text.get(1.0, tk.END).strip()
-        species1 = self.species1_var.get().strip()
-        count1 = self.count1_var.get().strip()
-        species2 = self.species2_var.get().strip()
-        count2 = self.count2_var.get().strip()
-        species3 = self.species3_var.get().strip()  # New
-        count3 = self.count3_var.get().strip()      # New
-        species4 = self.species4_var.get().strip()  # New
-        count4 = self.count4_var.get().strip()      # New
-        generl_checked = self.generl_var.get()
-        luisa_checked = self.luisa_var.get()
-
+        
+        # Validation
         if not location or location not in ['FP1', 'FP2', 'FP3', 'Nische']:
             messagebox.showerror("Fehler", "Bitte geben Sie einen gültigen Standort ein (FP1, FP2, FP3, Nische)", parent=self.root)
             return
@@ -1167,50 +1156,50 @@ class ImageAnalyzer:
             messagebox.showerror("Fehler", "Bitte geben Sie ein Datum ein", parent=self.root)
             return
 
-        # Get the next ID for this location from Excel
+        # Get the next ID for this location from Excel (I/O function)
         new_id = gm_io.get_next_id_for_location(self.output_excel or OUTPUT_EXCEL, location)
 
+        # Prepare data structure
         data = {
             'Nr. ': new_id,
             'Standort': location,
             'Datum': date,
             'Uhrzeit': time_str,
-            'Dagmar': '',
-            'Recka': '',
-            'Unbestimmt': 'Bg' if 'Bartgeier' in animals else '',
-            'Aktivität': aktivitat,
-            'Art 1': species1,
-            'Anzahl 1': count1,
-            'Art 2': species2,
-            'Anzahl 2': count2,
-            'Art 3': species3,  # New
-            'Anzahl 3': count3,  # New
-            'Art 4': species4,  # New
-            'Anzahl 4': count4,  # New
-            'Interaktion': interaktion,
-            'Sonstiges': sonstiges,
-            'Generl': 'X' if generl_checked else '',
-            'Luisa': 'X' if luisa_checked else '',
-            'Korrektur': '',
-            'animals_detected': animals,
-            'filename': os.path.basename(image_file),  # Keep original filename for now
+            'Generl': 'X' if self.generl_var.get() else '',
+            'Luisa': 'X' if self.luisa_var.get() else '',
+            'Unbestimmt': 'Bg' if 'Bartgeier' in self.animals_text.get(1.0, tk.END) else '',
+            'Aktivität': self.aktivitat_var.get(),
+            'Art 1': self.species1_var.get().strip(),
+            'Anzahl 1': self.count1_var.get().strip(),
+            'Art 2': self.species2_var.get().strip(),
+            'Anzahl 2': self.count2_var.get().strip(),
+            'Art 3': self.species3_var.get().strip(),
+            'Anzahl 3': self.count3_var.get().strip(),
+            'Art 4': self.species4_var.get().strip(),
+            'Anzahl 4': self.count4_var.get().strip(),
+            'Interaktion': self.interaktion_var.get(),
+            'Sonstiges': self.sonstiges_text.get(1.0, tk.END).strip(),
+            'filename': os.path.basename(image_file),
             'original_filename': image_file
         }
 
-        # Save to Excel first
-        self.results.append(data)
-        gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, location, data)
-        
-        # Store the Excel entry for renaming
-        self.current_excel_entry = data
-        
-        # Enable the rename button now that we have an Excel entry
-        self.rename_button.config(state='normal')
-        
-        # Update the filename preview to show the actual filename that will be used
-        self.update_filename_preview()
-        
-        print(f"✅ Analysis saved to Excel with ID {new_id} - Rename button enabled")
+        # Save to Excel using I/O module (no duplication)
+        try:
+            gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, location, data)
+            
+            # Store the Excel entry for renaming (GUI logic)
+            self.current_excel_entry = data
+            
+            # Enable the rename button (GUI logic)
+            self.rename_button.config(state='normal')
+            
+            # Update the filename preview (GUI logic)
+            self.update_filename_preview()
+            
+            print(f"✅ Analysis saved to Excel with ID {new_id} - Rename button enabled")
+            
+        except Exception as e:
+            messagebox.showerror("Fehler", f"Fehler beim Speichern in Excel: {e}", parent=self.root)
 
     def next_image(self):
         """Navigate to next image"""
