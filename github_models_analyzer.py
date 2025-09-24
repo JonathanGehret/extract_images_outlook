@@ -1159,12 +1159,16 @@ class ImageAnalyzer:
         # Get the next ID for this location from Excel (I/O function)
         new_id = gm_io.get_next_id_for_location(self.output_excel or OUTPUT_EXCEL, location)
 
+        # Convert date and time to proper formats for Excel
+        processed_date = self._process_date_for_excel(date)
+        processed_time = self._process_time_for_excel(time_str)
+
         # Prepare data structure
         data = {
             'Nr. ': new_id,
             'Standort': location,
-            'Datum': date,
-            'Uhrzeit': time_str,
+            'Datum': processed_date,    # Use processed date
+            'Uhrzeit': processed_time,  # Use processed time
             'Generl': 'X' if self.generl_var.get() else '',
             'Luisa': 'X' if self.luisa_var.get() else '',
             'Unbestimmt': 'Bg' if 'Bartgeier' in self.animals_text.get(1.0, tk.END) else '',
@@ -1200,6 +1204,52 @@ class ImageAnalyzer:
             
         except Exception as e:
             messagebox.showerror("Fehler", f"Fehler beim Speichern in Excel: {e}", parent=self.root)
+
+    def _process_date_for_excel(self, date_str):
+        """Convert date string to Excel-compatible format."""
+        if not date_str:
+            return date_str
+        
+        # Try to convert DD.MM.YYYY to Excel date number
+        try:
+            from datetime import datetime
+            if '.' in date_str:
+                parts = date_str.split('.')
+                if len(parts) == 3:
+                    day, month, year = parts
+                    if len(year) == 2:
+                        year = '20' + year
+                    dt = datetime(int(year), int(month), int(day))
+                    # Convert to Excel date number (days since 1900-01-01)
+                    excel_date = (dt - datetime(1900, 1, 1)).days + 2
+                    return excel_date
+        except:
+            pass
+        
+        # If conversion fails, return as string
+        return date_str
+
+    def _process_time_for_excel(self, time_str):
+        """Convert time string to Excel-compatible format."""
+        if not time_str:
+            return time_str
+            
+        # Try to convert HH:MM:SS to Excel time fraction
+        try:
+            if ':' in time_str:
+                parts = time_str.split(':')
+                if len(parts) >= 2:
+                    hours = int(parts[0])
+                    minutes = int(parts[1])
+                    seconds = int(parts[2]) if len(parts) > 2 else 0
+                    # Convert to fraction of day
+                    time_fraction = (hours + minutes/60 + seconds/3600) / 24
+                    return time_fraction
+        except:
+            pass
+        
+        # If conversion fails, return as string
+        return time_str
 
     def next_image(self):
         """Navigate to next image"""

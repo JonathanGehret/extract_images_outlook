@@ -206,7 +206,42 @@ def save_single_result(excel_path, location, data):
             # Write the data value if we have a match
             if data_key and data_key in data:
                 cell = ws.cell(row=next_row, column=col_idx)
-                cell.value = data[data_key]
+                
+                # Copy formatting from the row above first (if it exists)
+                if actual_last_row > 1:  # Make sure there's a previous data row
+                    source_cell = ws.cell(row=actual_last_row, column=col_idx)
+                    
+                    # Copy cell formatting
+                    if source_cell.has_style:
+                        cell.font = openpyxl.styles.Font(
+                            name=source_cell.font.name,
+                            size=source_cell.font.size,
+                            bold=source_cell.font.bold,
+                            italic=source_cell.font.italic,
+                            color=source_cell.font.color
+                        )
+                        cell.fill = openpyxl.styles.PatternFill(
+                            fill_type=source_cell.fill.fill_type,
+                            start_color=source_cell.fill.start_color,
+                            end_color=source_cell.fill.end_color
+                        )
+                        cell.border = openpyxl.styles.Border(
+                            left=source_cell.border.left,
+                            right=source_cell.border.right,
+                            top=source_cell.border.top,
+                            bottom=source_cell.border.bottom
+                        )
+                        cell.alignment = openpyxl.styles.Alignment(
+                            horizontal=source_cell.alignment.horizontal,
+                            vertical=source_cell.alignment.vertical
+                        )
+                        cell.number_format = source_cell.number_format
+                
+                # Set the value - simple and direct
+                if data_key in ['Generl', 'Luisa'] and data[data_key] == 'X':
+                    cell.value = 'x'  # Use lowercase x instead of uppercase X
+                else:
+                    cell.value = data[data_key]  # Write exactly as received
         
         # Save the workbook (preserves ALL original formatting)
         workbook.save(excel_path)
