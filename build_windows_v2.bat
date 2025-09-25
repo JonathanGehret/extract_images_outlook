@@ -20,41 +20,7 @@ python -m pip install pyinstaller
 
 REM Build executable using optimized approach
 echo 🔧 Building Windows executable...
-python -m PyInstaller --clean ^
-    --onefile ^
-    --windowed ^
-    --name "KamerafallenTools" ^
-    --icon "bg_fotos_icon.ico" ^
-    --hidden-import tkinter ^
-    --hidden-import tkinter.ttk ^
-    --hidden-import tkinter.filedialog ^
-    --hidden-import tkinter.messagebox ^
-    --hidden-import PIL ^
-    --hidden-import PIL.Image ^
-    --hidden-import PIL.ImageTk ^
-    --hidden-import PIL.ImageDraw ^
-    --hidden-import pandas ^
-    --hidden-import openpyxl ^
-    --hidden-import extract_msg ^
-    --hidden-import requests ^
-    --hidden-import dotenv ^
-    --hidden-import numpy ^
-    --hidden-import argparse ^
-    --add-data "github_models_analyzer.py;." ^
-    --add-data "github_models_api.py;." ^
-    --add-data "github_models_io.py;." ^
-    --add-data "rename_images_from_excel.py;." ^
-    --add-data "extract_img_email.py;." ^
-    --add-data ".env.example;." ^
-    --exclude-module matplotlib ^
-    --exclude-module scipy ^
-    --exclude-module IPython ^
-    --exclude-module notebook ^
-    --exclude-module PyQt5 ^
-    --exclude-module PyQt6 ^
-    --exclude-module PySide2 ^
-    --exclude-module PySide6 ^
-    main_gui.py
+python -m PyInstaller KamerafallenTools.spec
 
 if exist "dist\KamerafallenTools.exe" (
     echo ✅ Build successful!

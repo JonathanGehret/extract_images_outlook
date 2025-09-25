@@ -6,23 +6,8 @@ echo 🚀 Building Kamerafallen-Tools for Windows...
 REM Install PyInstaller if needed
 python -m pip install pyinstaller
 
-REM Create the executable
-python -m PyInstaller ^
-    --onefile ^
-    --windowed ^
-    --name="KamerafallenTools" ^
-    --add-data="*.py;." ^
-    --hidden-import="PIL._tkinter_finder" ^
-    --hidden-import="extract_msg" ^
-    --hidden-import="pandas" ^
-    --hidden-import="openpyxl" ^
-    --hidden-import="PIL" ^
-    --hidden-import="requests" ^
-    --hidden-import="dotenv" ^
-    --hidden-import="tkinter.ttk" ^
-    --hidden-import="tkinter.filedialog" ^
-    --hidden-import="tkinter.messagebox" ^
-    main_gui.py
+REM Create the executable using the spec file
+python -m PyInstaller KamerafallenTools.spec
 
 if exist "dist\KamerafallenTools.exe" (
     echo ✅ Executable created successfully!

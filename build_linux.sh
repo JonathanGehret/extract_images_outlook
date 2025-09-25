@@ -6,43 +6,8 @@ echo "🚀 Building Kamerafallen-Tools for Linux (lean build)..."
 # Install PyInstaller if needed
 python3 -m pip install pyinstaller
 
-# Create the executable with exclusions
-python3 -m PyInstaller \
-    --onefile \
-    --windowed \
-    --name="KamerafallenTools" \
-    --add-data="github_models_analyzer.py:." \
-    --add-data="github_models_io.py:." \
-    --add-data="github_models_api.py:." \
-    --add-data="extract_img_email.py:." \
-    --add-data="rename_images_from_excel.py:." \
-    --hidden-import="PIL._tkinter_finder" \
-    --hidden-import="extract_msg" \
-    --hidden-import="pandas" \
-    --hidden-import="openpyxl" \
-    --hidden-import="openpyxl.styles" \
-    --hidden-import="PIL" \
-    --hidden-import="requests" \
-    --hidden-import="dotenv" \
-    --hidden-import="tkinter.ttk" \
-    --hidden-import="tkinter.filedialog" \
-    --hidden-import="tkinter.messagebox" \
-    --hidden-import="github_models_analyzer" \
-    --hidden-import="github_models_io" \
-    --hidden-import="github_models_api" \
-    --hidden-import="extract_img_email" \
-    --hidden-import="rename_images_from_excel" \
-    --exclude-module="torch" \
-    --exclude-module="tensorflow" \
-    --exclude-module="torchvision" \
-    --exclude-module="numpy.distutils" \
-    --exclude-module="matplotlib" \
-    --exclude-module="scipy" \
-    --exclude-module="sklearn" \
-    --exclude-module="cv2" \
-    --exclude-module="jupyterlab" \
-    --exclude-module="notebook" \
-    main_gui.py
+# Create the executable using the spec file for better reliability
+python3 -m PyInstaller KamerafallenTools.spec
 
 if [ -f "dist/KamerafallenTools" ]; then
     echo "✅ Executable created successfully!"

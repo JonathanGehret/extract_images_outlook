@@ -238,6 +238,9 @@ class ImageAnalyzer:
         # Initialize the analysis buffer
         self.analysis_buffer = None  # Will be initialized after GUI setup
 
+        # Keep strong references to PhotoImage objects to prevent garbage collection in bundled executables
+        self.photo_images = []
+
         self.setup_gui()
         self.refresh_image_files()
         
@@ -632,6 +635,9 @@ class ImageAnalyzer:
         try:
             # Clear any previous image reference first
             if hasattr(self, 'current_photo_image'):
+                # Remove from our reference list if it exists
+                if hasattr(self, 'current_photo_image') and self.current_photo_image in self.photo_images:
+                    self.photo_images.remove(self.current_photo_image)
                 del self.current_photo_image
             
             image = Image.open(image_path)
@@ -640,8 +646,12 @@ class ImageAnalyzer:
                 image = image.convert('RGB')
             image.thumbnail((500, 400), Image.Resampling.LANCZOS)
             
-            # Store reference to prevent garbage collection in bundled environment
-            self.current_photo_image = ImageTk.PhotoImage(image)
+            # Create PhotoImage and keep strong reference
+            self.current_photo_image = ImageTk.PhotoImage(image, master=self.root)
+            
+            # Add to our reference list to prevent garbage collection
+            self.photo_images.append(self.current_photo_image)
+            
             self.image_label.configure(image=self.current_photo_image)
             # Keep additional reference for tkinter
             self.image_label.image = self.current_photo_image
@@ -649,6 +659,8 @@ class ImageAnalyzer:
             print(f"Fehler beim Laden des Bildes {image_path}: {e}")
             self.image_label.configure(image='')
             if hasattr(self, 'current_photo_image'):
+                if self.current_photo_image in self.photo_images:
+                    self.photo_images.remove(self.current_photo_image)
                 del self.current_photo_image
         progress = f"Image {self.current_image_index + 1} of {len(self.image_files)}: {image_file}"
         self.progress_var.set(progress)
@@ -1341,9 +1353,7 @@ class ImageAnalyzer:
             photo = ImageTk.PhotoImage(img, master=self.root)
             
             # Keep a strong reference to prevent garbage collection in bundled environment
-            if not hasattr(self, '_image_refs'):
-                self._image_refs = []
-            self._image_refs.append(photo)
+            self.photo_images.append(photo)
             
             return photo
         except Exception as e:
