@@ -33,12 +33,16 @@ python3 create_release.py
 
 ### Windows:
 ```batch
-REM Install dependencies
+REM Install dependencies (first run only)
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
 
-REM Build executable
-build_windows_v2.bat
+REM Build executable (packaged + ZIP)
+build_windows_release.bat
+
+REM Optional: run verbose diagnostics if the release build fails
+build_windows_debug.bat
 ```
 
 ## Build Scripts Available
@@ -49,8 +53,9 @@ build_windows_v2.bat
 - **`build_linux.sh`** - Simple shell script alternative
 
 ### Windows Scripts:
-- **`build_windows_v2.bat`** - Updated optimized build script (RECOMMENDED)
-- **`build_windows.bat`** - Legacy build script
+- **`build_windows_release.bat`** - Primary end-to-end build + packaging script (creates portable folder and ZIP)
+- **`build_windows_debug.bat`** - Verbose troubleshooting build with detailed logs
+- **`old files that dont work/`** - Contains legacy scripts kept for reference only
 
 ## Output Structure
 
