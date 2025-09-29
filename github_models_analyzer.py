@@ -169,7 +169,7 @@ print(f"DEBUG: IMAGES_FOLDER: {IMAGES_FOLDER}")
 print(f"DEBUG: OUTPUT_EXCEL: {OUTPUT_EXCEL}")
 
 ANIMAL_SPECIES = [
-    "Bartgeier", "Steinadler", "Kolkabe",
+    "Bartgeier", "Steinadler", "Kolkrabe",
     "Alpendohle", "Fuchs", "Gams", "Steinbock", 
     "Murmeltier", "Marder", "Reh", "Hirsch", "Rabenkrähe",
     "Mensch"
@@ -186,8 +186,15 @@ class AnalysisBuffer:
         self.failed = set()  # Failed analyses
         self.executor = ThreadPoolExecutor(max_workers=5)
         self.buffer_size = 3  # Keep 3 images ahead analyzed
+        self.batch_size = 5   # Initial batch size when explicitly triggered
         self.retry_attempts = {}
-        self.max_retries = 2
+        self.max_retries = 3
+        self.retry_backoff_base_ms = 5000
+        self.max_retry_delay_ms = 60000
+        self.long_retry_cooldown = 60  # seconds
+        self.failed_timestamps = {}
+        self.failure_reasons = {}
+        self.pending_long_retry = set()
         
     def get_analysis(self, image_index, force_analysis=False):
         """Get analysis result for image, trigger batch if not available.
@@ -216,6 +223,12 @@ class AnalysisBuffer:
                 self.retry_attempts[image_index] = 0
                 self._start_single_analysis(image_index)
                 return "analyzing"
+            elif self._should_auto_retry(image_index):
+                print(f"DEBUG: Auto retry triggered for image {image_index} after cooldown")
+                self.failed.discard(image_index)
+                self.retry_attempts[image_index] = 0
+                self._start_single_analysis(image_index)
+                return "analyzing"
             return "failed"
         else:
             # Only start analysis if explicitly requested (from analyze button)
@@ -231,7 +244,14 @@ class AnalysisBuffer:
     
     def _ensure_buffer_ahead(self, current_index):
         """Ensure we have buffer_size images analyzed ahead."""
-        for i in range(current_index, min(current_index + self.buffer_size, len(self.analyzer.image_files))):
+        if not self.analyzer.image_files:
+            return
+
+        current_visible = max(self.analyzer.current_image_index, 0)
+        limit_index = min(current_visible + 1 + self.buffer_size, len(self.analyzer.image_files))
+
+        start_index = max(current_index, current_visible + 1)
+        for i in range(start_index, limit_index):
             if (i not in self.buffer and 
                 i not in self.analyzing and 
                 i not in self.failed):
@@ -239,7 +259,16 @@ class AnalysisBuffer:
     
     def _start_batch_analysis(self, start_index):
         """Start analyzing a batch of up to 5 images."""
-        batch_size = min(5, len(self.analyzer.image_files) - start_index)
+        if not self.analyzer.image_files:
+            return
+
+        current_visible = max(self.analyzer.current_image_index, 0)
+        limit_index = min(current_visible + 1 + self.buffer_size, len(self.analyzer.image_files))
+        batch_limit = min(self.batch_size, len(self.analyzer.image_files) - start_index, max(0, limit_index - start_index))
+        if batch_limit <= 0:
+            return
+
+        batch_size = batch_limit
         for i in range(start_index, start_index + batch_size):
             if i not in self.buffer and i not in self.analyzing:
                 self._start_single_analysis(i)
@@ -249,11 +278,30 @@ class AnalysisBuffer:
         if image_index >= len(self.analyzer.image_files):
             return
             
+        self.failed.discard(image_index)
+        self.failed_timestamps.pop(image_index, None)
+        self.failure_reasons.pop(image_index, None)
+        self.pending_long_retry.discard(image_index)
         self.retry_attempts.setdefault(image_index, 0)
         self.analyzing.add(image_index)
         future = self.executor.submit(self._analyze_image, image_index)
-        future.add_done_callback(lambda f: self._analysis_complete(image_index, f))
+
+        def _schedule_result(fut):
+            try:
+                self.analyzer.root.after(0, lambda: self._analysis_complete(image_index, fut))
+            except Exception as exc:
+                print(f"DEBUG: Failed to schedule UI callback for image {image_index}: {exc}")
+                # Fallback: process immediately (may happen during shutdown)
+                self._analysis_complete(image_index, fut)
+
+        future.add_done_callback(_schedule_result)
     
+    def _should_auto_retry(self, image_index):
+        last_failed = self.failed_timestamps.get(image_index)
+        if last_failed is None:
+            return False
+        return (time.time() - last_failed) >= self.long_retry_cooldown
+
     def _analyze_image(self, image_index):
         """Perform the actual image analysis."""
         try:
@@ -291,7 +339,16 @@ class AnalysisBuffer:
             time_value = time_str or ''
             error_value = None
 
-            if animals_value.strip().lower() == 'error in analysis' and not location_value:
+            animals_lower = animals_value.strip().lower()
+            location_lower = location_value.strip().lower()
+            if (
+                'error in analysis' in animals_lower
+                or 'analysis error' in animals_lower
+                or 'fehler bei analyse' in animals_lower
+                or 'placeholder' in animals_lower
+            ):
+                error_value = 'AI returned placeholder result'
+            if error_value and location_lower in ('', 'unbekannt', 'unknown'):
                 error_value = 'AI returned placeholder result'
 
             return {
@@ -315,42 +372,130 @@ class AnalysisBuffer:
             }
     
     def _analysis_complete(self, image_index, future):
-        """Handle completion of image analysis."""
+        """Handle completion of image analysis (runs on Tk main thread)."""
         self.analyzing.discard(image_index)
-        
+
         try:
             result = future.result()
-            if result.get('error'):
-                attempts = self.retry_attempts.get(image_index, 0)
-                if attempts < self.max_retries:
-                    self.retry_attempts[image_index] = attempts + 1
-                    print(f"Retrying analysis for image {image_index} (attempt {attempts + 1}/{self.max_retries}) due to: {result['error']}")
-                    # Requeue analysis
-                    self._start_single_analysis(image_index)
-                    self.analyzer.root.after(0, self._update_buffer_status)
-                else:
-                    self.failed.add(image_index)
-                    self.retry_attempts.pop(image_index, None)
-                    print(f"Analysis failed for image {image_index}: {result['error']}")
-                    self.analyzer.root.after(0, self._update_buffer_status)
+        except Exception as exc:
+            print(f"Exception in analysis for image {image_index}: {exc}")
+            self._record_failure(image_index, str(exc))
+            return
+
+        error_message = result.get('error')
+        if error_message:
+            attempts = self.retry_attempts.get(image_index, 0) + 1
+            if attempts <= self.max_retries:
+                self.retry_attempts[image_index] = attempts
+                delay_ms = self._compute_retry_delay_ms(attempts)
+                print(
+                    "Retrying analysis for image "
+                    f"{image_index} (attempt {attempts}/{self.max_retries}) due to: {error_message}. "
+                    f"Next try in {delay_ms / 1000:.1f}s"
+                )
+                if image_index == self.analyzer.current_image_index and hasattr(self.analyzer, 'analysis_status_label'):
+                    friendly = self._format_error_message(error_message)
+                    self.analyzer.analysis_status_label.config(text=friendly + " – wiederhole...", foreground="orange")
+                self._schedule_retry(image_index, delay_ms)
             else:
-                self.buffer[image_index] = result
-                self.retry_attempts.pop(image_index, None)
-                print(f"✓ Analysis complete for image {image_index}: {result['animals']}")
-                
-                # Update UI if this is the current image
-                if image_index == self.analyzer.current_image_index:
-                    self.analyzer.root.after(0, lambda r=result: self._update_current_image_ui(r))
-                    
-                # Update buffer status
-                self.analyzer.root.after(0, self._update_buffer_status)
-                # Keep buffer rolling ahead on UI thread
-                self.analyzer.root.after(0, lambda idx=image_index + 1: self._ensure_buffer_ahead(idx))
-                    
-        except Exception as e:
-            self.failed.add(image_index)
-            print(f"Exception in analysis for image {image_index}: {e}")
+                self._record_failure(image_index, error_message)
+            return
+
+        self.buffer[image_index] = result
+        self.retry_attempts.pop(image_index, None)
+        self.failed.discard(image_index)
+        self.failed_timestamps.pop(image_index, None)
+        self.failure_reasons.pop(image_index, None)
+        print(f"✓ Analysis complete for image {image_index}: {result['animals']}")
+
+        if image_index == self.analyzer.current_image_index:
+            self._update_current_image_ui(result)
+
+        self._update_buffer_status()
+        self._ensure_buffer_ahead(image_index + 1)
     
+    def _schedule_retry(self, image_index, delay_ms):
+        """Schedule a retry with a short cooldown to prevent rapid requeue."""
+        def _retry():
+            if image_index in self.failed:
+                return
+            self._start_single_analysis(image_index)
+            self._update_buffer_status()
+
+        try:
+            self.analyzer.root.after(delay_ms, _retry)
+        except Exception as exc:
+            print(f"DEBUG: Retry scheduling failed for image {image_index}: {exc}; retrying immediately")
+            _retry()
+
+    def _compute_retry_delay_ms(self, attempt_number):
+        delay = self.retry_backoff_base_ms * (2 ** max(0, attempt_number - 1))
+        return int(min(delay, self.max_retry_delay_ms))
+
+    def _record_failure(self, image_index, error_message):
+        self.failed.add(image_index)
+        self.retry_attempts.pop(image_index, None)
+        self.failed_timestamps[image_index] = time.time()
+        friendly = self._format_error_message(error_message)
+        self.failure_reasons[image_index] = {
+            'raw': error_message or '',
+            'friendly': friendly,
+        }
+        print(f"Analysis failed for image {image_index}: {error_message}")
+        if image_index == self.analyzer.current_image_index and hasattr(self.analyzer, 'analysis_status_label'):
+            self.analyzer.analysis_status_label.config(text=friendly, foreground="red")
+        self._update_buffer_status()
+
+        lower = (error_message or '').lower()
+        if any(keyword in lower for keyword in ("placeholder", "limit", "quota", "429", "temporarily")):
+            self._schedule_long_retry(image_index)
+
+    def _format_error_message(self, error_message):
+        if not error_message:
+            return "❌ KI-Analyse fehlgeschlagen"
+        lower = error_message.lower()
+        if any(keyword in lower for keyword in ("quota", "limit", "429", "rate")):
+            return "❌ KI-Limit erreicht – bitte kurz warten und erneut versuchen"
+        if any(keyword in lower for keyword in ("401", "unauthorized", "invalid")):
+            return "❌ Token ungültig oder abgelaufen – bitte Zugangsdaten prüfen"
+        if "placeholder" in lower or "error in analysis" in lower:
+            return "⚠️ KI-Antwort leer – versuche es gleich noch einmal"
+        return f"❌ KI-Analyse fehlgeschlagen: {error_message}"
+
+    def get_failure_reason(self, image_index, *, human_friendly=False):
+        data = self.failure_reasons.get(image_index)
+        if not data:
+            return ""
+        if human_friendly:
+            return data.get('friendly', '')
+        return data.get('raw', '')
+
+    def _schedule_long_retry(self, image_index):
+        if self.analyzer.dummy_mode_var.get():
+            return
+        if image_index in self.pending_long_retry:
+            return
+
+        delay_ms = int(self.long_retry_cooldown * 1000)
+
+        def _trigger():
+            self.pending_long_retry.discard(image_index)
+            if image_index >= len(self.analyzer.image_files):
+                return
+            if image_index in self.analyzing:
+                return
+            self.failed.discard(image_index)
+            self.retry_attempts[image_index] = 0
+            self._start_single_analysis(image_index)
+            self._update_buffer_status()
+
+        try:
+            self.analyzer.root.after(delay_ms, _trigger)
+            self.pending_long_retry.add(image_index)
+            print(f"DEBUG: Scheduled long retry for image {image_index} in {delay_ms / 1000:.0f}s")
+        except Exception as exc:
+            print(f"DEBUG: Failed to schedule long retry for image {image_index}: {exc}; manual retry required")
+
     def _update_current_image_ui(self, result):
         """Update UI with analysis result if it's for current image."""
         try:
@@ -1025,8 +1170,22 @@ class ImageAnalyzer:
             # The UI will be updated automatically when analysis completes
         elif result == "failed":
             # Analysis failed
-            self.analysis_status_label.config(text="❌ KI-Analyse fehlgeschlagen", foreground="red")
-            messagebox.showerror("Fehler", "Die KI-Analyse für dieses Bild ist fehlgeschlagen.", parent=self.root)
+            friendly = ""
+            raw_reason = ""
+            if self.analysis_buffer:
+                friendly = self.analysis_buffer.get_failure_reason(self.current_image_index, human_friendly=True)
+                raw_reason = self.analysis_buffer.get_failure_reason(self.current_image_index)
+
+            status_text = friendly or "❌ KI-Analyse fehlgeschlagen"
+            self.analysis_status_label.config(text=status_text, foreground="red")
+
+            message = "Die KI-Analyse für dieses Bild ist fehlgeschlagen."
+            if friendly:
+                message += f"\n\n{friendly}"
+            if raw_reason and raw_reason != friendly:
+                message += f"\n\nDetails: {raw_reason}"
+
+            messagebox.showerror("Fehler", message, parent=self.root)
         else:
             # Analysis result available immediately
             self._apply_analysis_result(result)

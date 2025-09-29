@@ -48,15 +48,20 @@ def analyze_with_github_models(image_path: str, token: str, animal_species: list
         ("https://api.github.com/models", "gpt-4o"),
     ]
 
+    errors = []
+
     for api_base, model_name in endpoints_and_models:
         try:
             result = _try_api_call(image_path, token, api_base, model_name, animal_species)
             if result != ("Error in analysis", "", "", ""):
                 return result
-        except Exception:
-            continue
+            errors.append(f"{model_name}@{api_base}: placeholder response")
+        except Exception as exc:
+            errors.append(f"{model_name}@{api_base}: {exc}")
 
-    return "Error in analysis", "", "", ""
+    error_summary = "; ".join(errors) if errors else "Unbekannter Fehler"
+    _log_debug(f"All API attempts failed -> {error_summary}")
+    raise RuntimeError(f"Alle API-Aufrufe fehlgeschlagen: {error_summary}")
 
 
 def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, animal_species: list):
@@ -107,14 +112,40 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
             "temperature": 0.1
         }
 
-    response = requests.post(f"{api_base}/chat/completions", headers=headers, json=payload, timeout=30)
-    if response.status_code == 200:
+    try:
+        response = requests.post(
+            f"{api_base}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        body = ""
+        if getattr(exc, "response", None) is not None:
+            try:
+                body = exc.response.text
+            except Exception:
+                body = "<unlesbare Antwort>"
+        elif 'response' in locals():
+            try:
+                body = response.text
+            except Exception:
+                body = "<unlesbare Antwort>"
+        _log_debug(f"API request failed for {model_name}@{api_base}: {exc} | body={body}")
+        raise
+
+    try:
         result = response.json()
         analysis_text = result['choices'][0]['message']['content']
-        _log_debug(f"Raw analysis response from {model_name}@{api_base} ->\n{analysis_text}")
-        return parse_analysis_response(analysis_text)
-    else:
-        raise Exception(f"API returned {response.status_code}: {response.text}")
+    except (ValueError, KeyError, IndexError) as exc:
+        _log_debug(
+            f"Failed to parse API response from {model_name}@{api_base}: {exc} | body={response.text[:500]}"
+        )
+        raise RuntimeError(f"Ungültige Antwort vom Modell {model_name}@{api_base}") from exc
+
+    _log_debug(f"Raw analysis response from {model_name}@{api_base} ->\n{analysis_text}")
+    return parse_analysis_response(analysis_text)
 
 
 def parse_analysis_response(analysis_text: str):
