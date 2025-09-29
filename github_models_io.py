@@ -5,6 +5,7 @@ can be used from the GUI without carrying state.
 """
 import os
 import shutil
+from datetime import datetime, timedelta
 import pandas as pd
 
 
@@ -35,7 +36,7 @@ def refresh_image_list(images_folder: str, old_list: list, current_index: int):
         return old_list, current_index
 
 
-def create_backup_and_rename_image(images_folder: str, image_file: str, location: str, date: str, species1: str, count1: str, species2: str, count2: str, new_id: int, generl_checked: bool=False, luisa_checked: bool=False):
+def create_backup_and_rename_image(images_folder: str, image_file: str, location: str, date, species1: str, count1: str, species2: str, count2: str, new_id: int, generl_checked: bool=False, luisa_checked: bool=False):
     try:
         old_path = os.path.join(images_folder, image_file)
         if not os.path.exists(old_path):
@@ -56,14 +57,33 @@ def create_backup_and_rename_image(images_folder: str, image_file: str, location
         animal_str = "_".join(animals) if animals else "Unknown"
 
         try:
-            if '.' in date:
-                day, month, year = date.split('.')
-                short_year = year[-2:] if len(year) == 4 else year
-                date_str = f"{month}.{day}.{short_year}"
+            # Normalize date to string in DD.MM.YYYY first
+            if isinstance(date, datetime):
+                normalized = date
+            elif isinstance(date, (int, float)):
+                normalized = datetime(1899, 12, 30) + timedelta(days=float(date))
             else:
-                date_str = date
+                date_str_raw = str(date).strip()
+                if date_str_raw.replace('.', '').isdigit() and '.' not in date_str_raw:
+                    # Excel serial stored as plain integer string
+                    normalized = datetime(1899, 12, 30) + timedelta(days=float(date_str_raw))
+                elif '.' in date_str_raw:
+                    parts = date_str_raw.split('.')
+                    if len(parts) == 3:
+                        day, month, year = parts
+                        if len(year) == 2:
+                            year = '20' + year
+                        normalized = datetime(int(year), int(month), int(day))
+                    else:
+                        normalized = datetime.fromisoformat(date_str_raw)
+                else:
+                    normalized = datetime.fromisoformat(date_str_raw)
+            day = normalized.day
+            month = normalized.month
+            year = normalized.year % 100
+            date_str = f"{month:02d}.{day:02d}.{year:02d}"
         except Exception:
-            date_str = date
+            date_str = str(date)
 
         special_names = []
         if generl_checked:

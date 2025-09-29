@@ -23,7 +23,7 @@ from PIL import Image, ImageTk, ImageDraw
 from concurrent.futures import ThreadPoolExecutor
 import time
 import builtins
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import github_models_api as gm_api
 import github_models_io as gm_io
@@ -1189,13 +1189,27 @@ class ImageAnalyzer:
         data = self.current_excel_entry
         
         # Rename the image file using the Excel data
+        date_source = data.get('Datum_Text', data.get('Datum'))
+        if isinstance(date_source, datetime):
+            date_for_io = date_source.strftime("%d.%m.%Y")
+        elif isinstance(date_source, (int, float)):
+            try:
+                base = datetime(1899, 12, 30)
+                dt = base + timedelta(days=float(date_source))
+                date_for_io = dt.strftime("%d.%m.%Y")
+            except Exception:
+                date_for_io = str(date_source)
+        else:
+            date_for_io = str(date_source)
         new_image_name = gm_io.create_backup_and_rename_image(
-            self.images_folder, image_file, 
-            data['Standort'], data['Datum'], 
-            data['Art 1'], data['Anzahl 1'], 
-            data['Art 2'], data['Anzahl 2'], 
-            data['Nr. '], 
-            data['Generl'] == 'X', 
+            self.images_folder,
+            image_file,
+            data['Standort'],
+            date_for_io,
+            data['Art 1'], data['Anzahl 1'],
+            data['Art 2'], data['Anzahl 2'],
+            data['Nr. '],
+            data['Generl'] == 'X',
             data['Luisa'] == 'X'
         )
         
@@ -1224,7 +1238,7 @@ class ImageAnalyzer:
         """Generate the preview filename based on Excel entry data (without actually renaming)"""
         try:
             location = data['Standort']
-            date = data['Datum']
+            date_value = data.get('Datum_Text', data.get('Datum'))
             species1 = data['Art 1']
             count1 = data['Anzahl 1']
             species2 = data['Art 2']
@@ -1242,15 +1256,7 @@ class ImageAnalyzer:
             animal_str = "_".join(animals) if animals else "Unknown"
             
             # Format date
-            try:
-                if '.' in date:
-                    day, month, year = date.split('.')
-                    short_year = year[-2:] if len(year) == 4 else year
-                    date_str = f"{month}.{day}.{short_year}"
-                else:
-                    date_str = date
-            except Exception:
-                date_str = date
+            date_str = self._format_date_for_filename(date_value)
             
             # Special names
             special_names = []
@@ -1289,7 +1295,7 @@ class ImageAnalyzer:
                 nr = int(time.time()) % 10000
         
         # Convert date from DD.MM.YYYY to MM.DD.YY format
-        date_str = self._convert_date_to_new_format(date)
+        date_str = self._format_date_for_filename(date)
         
         # Process animals (updated to include species 3 and 4)
         animals = self._process_animals_for_filename(species1, count1, species2, count2, species3, count3, species4, count4)  # Updated
@@ -1312,24 +1318,8 @@ class ImageAnalyzer:
         return new_name
 
     def _convert_date_to_new_format(self, date_str):
-        """Convert date from DD.MM.YYYY to MM.DD.YY format."""
-        try:
-            import pandas as pd
-            # If it's a pandas Timestamp or datetime object
-            date_obj = pd.to_datetime(date_str)
-            # Convert to MM.DD.YY format
-            return date_obj.strftime("%m.%d.%y")
-        except Exception:
-            # If it's a string, try to parse DD.MM.YYYY
-            parts = str(date_str).split(".")
-            if len(parts) == 3:
-                day, month, year = parts
-                # Convert to MM.DD.YY format (last 2 digits of year)
-                short_year = year[-2:] if len(year) == 4 else year
-                return f"{month.zfill(2)}.{day.zfill(2)}.{short_year}"
-            else:
-                print(f"Warnung: Unerkanntes Datumsformat: {date_str}")
-                return str(date_str)
+        """Backwards compatibility wrapper (uses _format_date_for_filename)."""
+        return self._format_date_for_filename(date_str)
 
     def _process_animals_for_filename(self, species1, count1, species2, count2, species3, count3, species4, count4):  # Updated signature
         """Process animal information for filename according to renamer specifications."""
@@ -1425,7 +1415,9 @@ class ImageAnalyzer:
             'Nr. ': new_id,
             'Standort': location,
             'Datum': processed_date,    # Use processed date
+            'Datum_Text': date,        # Preserve original text for filenames
             'Uhrzeit': processed_time,  # Use processed time
+            'Uhrzeit_Text': time_str,
             'Generl': 'X' if self.generl_var.get() else '',
             'Luisa': 'X' if self.luisa_var.get() else '',
             'Unbestimmt': 'Bg' if 'Bartgeier' in self.animals_text.get(1.0, tk.END) else '',
@@ -1467,9 +1459,8 @@ class ImageAnalyzer:
         if not date_str:
             return date_str
         
-        # Try to convert DD.MM.YYYY to Excel date number
+        # Try to convert DD.MM.YYYY to a datetime object (Excel interprets this correctly)
         try:
-            from datetime import datetime
             if '.' in date_str:
                 parts = date_str.split('.')
                 if len(parts) == 3:
@@ -1477,9 +1468,7 @@ class ImageAnalyzer:
                     if len(year) == 2:
                         year = '20' + year
                     dt = datetime(int(year), int(month), int(day))
-                    # Convert to Excel date number (days since 1900-01-01)
-                    excel_date = (dt - datetime(1900, 1, 1)).days + 2
-                    return excel_date
+                    return dt
         except Exception:
             pass
         
@@ -1507,6 +1496,46 @@ class ImageAnalyzer:
         
         # If conversion fails, return as string
         return time_str
+
+    def _format_date_for_filename(self, value):
+        """Convert various date representations to MM.DD.YY string for filenames."""
+        if value is None or value == "":
+            return ""
+
+        if isinstance(value, datetime):
+            return value.strftime("%m.%d.%y")
+
+        if isinstance(value, (int, float)):
+            try:
+                base = datetime(1899, 12, 30)  # Excel serial date origin
+                dt = base + timedelta(days=float(value))
+                return dt.strftime("%m.%d.%y")
+            except Exception:
+                value = str(value)
+
+        value_str = str(value).strip()
+        if not value_str:
+            return ""
+
+        # Handle common German format DD.MM.YYYY or DD.MM.YY
+        try:
+            if '.' in value_str:
+                parts = value_str.split('.')
+                if len(parts) == 3:
+                    day, month, year = parts
+                    if len(year) == 2:
+                        year = '20' + year
+                    dt = datetime(int(year), int(month), int(day))
+                    return dt.strftime("%m.%d.%y")
+        except Exception:
+            pass
+
+        # Try ISO-style parsing as fallback
+        try:
+            dt = datetime.fromisoformat(value_str)
+            return dt.strftime("%m.%d.%y")
+        except Exception:
+            return value_str
 
     def next_image(self):
         """Navigate to next image"""
