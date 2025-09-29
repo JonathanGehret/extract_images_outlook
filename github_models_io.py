@@ -36,7 +36,15 @@ def refresh_image_list(images_folder: str, old_list: list, current_index: int):
         return old_list, current_index
 
 
-def create_backup_and_rename_image(images_folder: str, image_file: str, location: str, date, species1: str, count1: str, species2: str, count2: str, new_id: int, generl_checked: bool=False, luisa_checked: bool=False):
+def create_backup_and_rename_image(images_folder: str, image_file: str, location: str, date,
+                                   species1: str, count1: str,
+                                   species2: str, count2: str,
+                                   species3: str, count3: str,
+                                   species4: str, count4: str,
+                                   new_id: int,
+                                   generl_checked: bool = False,
+                                   luisa_checked: bool = False,
+                                   unspecified_bartgeier: bool = False):
     try:
         old_path = os.path.join(images_folder, image_file)
         if not os.path.exists(old_path):
@@ -49,12 +57,46 @@ def create_backup_and_rename_image(images_folder: str, image_file: str, location
             shutil.copy2(old_path, backup_path)
 
         animals = []
-        if species1:
-            animals.append(f"{species1}_{count1 or '1'}")
-        if species2:
-            animals.append(f"{species2}_{count2 or '1'}")
+        for species, count in [
+            (species1, count1),
+            (species2, count2),
+            (species3, count3),
+            (species4, count4)
+        ]:
+            normalized = str(species).strip() if species is not None else ""
+            if not normalized:
+                continue
 
-        animal_str = "_".join(animals) if animals else "Unknown"
+            if "bartgeier" in normalized.lower():
+                continue
+
+            count_suffix = ""
+            if count not in (None, ""):
+                try:
+                    count_val = int(float(count))
+                    if count_val > 1:
+                        count_suffix = f"_{count_val}"
+                except (ValueError, TypeError):
+                    pass
+
+            lower_name = normalized.lower()
+            if normalized.upper() == 'RK':
+                animals.append(f"Rabenkrähe{count_suffix}")
+            elif lower_name == 'rk':
+                animals.append(f"Kolkrabe{count_suffix}")
+            elif normalized.upper() == 'RV':
+                animals.append(f"Kolkrabe{count_suffix}")
+            elif lower_name in ['fuchs', 'marder']:
+                animals.append(f"{normalized.capitalize()}{count_suffix}")
+            elif lower_name == 'gams':
+                animals.append(f"Gämse{count_suffix}")
+            else:
+                animals.append(f"{normalized}{count_suffix}")
+
+        if unspecified_bartgeier:
+            animals.append("Unbestimmt_Bartgeier")
+
+        animal_str = "_".join(animals)
 
         try:
             # Normalize date to string in DD.MM.YYYY first
@@ -85,26 +127,38 @@ def create_backup_and_rename_image(images_folder: str, image_file: str, location
         except Exception:
             date_str = str(date)
 
+        if not date_str:
+            date_str = "unknown-date"
+
         special_names = []
         if generl_checked:
             special_names.append("Generl")
         if luisa_checked:
             special_names.append("Luisa")
 
-        special_str = "_".join(special_names) if special_names else ""
+        special_str = "_".join(special_names)
+
+        parts = [
+            location,
+            f"{int(new_id):04d}",
+            date_str
+        ]
 
         if special_str:
-            new_name = f"{location}_{new_id:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
-        else:
-            new_name = f"{location}_{new_id:04d}_{date_str}_{animal_str}.jpeg"
+            parts.append(special_str)
+        if animal_str:
+            parts.append(animal_str)
+
+        new_name = "_".join([p for p in parts if p]) + ".jpeg"
 
         new_path = os.path.join(images_folder, new_name)
 
         counter = 1
-        base_new_name = new_name
+        base_root, base_ext = os.path.splitext(new_name)
+        if not base_ext:
+            base_ext = ".jpeg"
         while os.path.exists(new_path) and new_path != old_path:
-            name_without_ext = base_new_name.replace('.jpeg', '')
-            new_name = f"{name_without_ext}_{counter}.jpeg"
+            new_name = f"{base_root}_{counter}{base_ext}"
             new_path = os.path.join(images_folder, new_name)
             counter += 1
 
@@ -153,16 +207,18 @@ def save_single_result(excel_path, location, data):
             for loc in ['FP1', 'FP2', 'FP3', 'Nische']:
                 ws = workbook.create_sheet(loc)
                 # Add standard headers
-                headers = ['Nr. ', 'Datum', 'Uhrzeit', 'Generl', 'Luisa', 'Unbestimmt', 
-                          'Aktivität', 'Art 1', 'Anz. 1', 'Art 2', 'Anz. 2', 'Interaktion', 'Sonstiges']
+                headers = ['Nr. ', 'Datum', 'Uhrzeit', 'Generl', 'Luisa', 'Unbestimmt',
+                          'Aktivität', 'Art 1', 'Anz. 1', 'Art 2', 'Anz. 2',
+                          'Art 3', 'Anz. 3', 'Art 4', 'Anz. 4', 'Interaktion', 'Sonstiges']
                 ws.append(headers)
         
         # Get or create the worksheet for this location
         if location not in workbook.sheetnames:
             ws = workbook.create_sheet(location)
             # Add headers if new sheet
-            headers = ['Nr. ', 'Datum', 'Uhrzeit', 'Generl', 'Luisa', 'Unbestimmt', 
-                      'Aktivität', 'Art 1', 'Anz. 1', 'Art 2', 'Anz. 2', 'Interaktion', 'Sonstiges']
+            headers = ['Nr. ', 'Datum', 'Uhrzeit', 'Generl', 'Luisa', 'Unbestimmt',
+                      'Aktivität', 'Art 1', 'Anz. 1', 'Art 2', 'Anz. 2',
+                      'Art 3', 'Anz. 3', 'Art 4', 'Anz. 4', 'Interaktion', 'Sonstiges']
             ws.append(headers)
         else:
             ws = workbook[location]

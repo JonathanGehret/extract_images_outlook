@@ -1208,9 +1208,12 @@ class ImageAnalyzer:
             date_for_io,
             data['Art 1'], data['Anzahl 1'],
             data['Art 2'], data['Anzahl 2'],
+            data['Art 3'], data['Anzahl 3'],
+            data['Art 4'], data['Anzahl 4'],
             data['Nr. '],
             data['Generl'] == 'X',
-            data['Luisa'] == 'X'
+            data['Luisa'] == 'X',
+            data.get('Unbestimmt') == 'Bg'
         )
         
         if new_image_name is None:
@@ -1239,45 +1242,47 @@ class ImageAnalyzer:
         try:
             location = data['Standort']
             date_value = data.get('Datum_Text', data.get('Datum'))
-            species1 = data['Art 1']
-            count1 = data['Anzahl 1']
-            species2 = data['Art 2']
-            count2 = data['Anzahl 2']
             new_id = data['Nr. ']
             generl_checked = data['Generl'] == 'X'
             luisa_checked = data['Luisa'] == 'X'
-            
-            # Generate animals string
-            animals = []
-            if species1:
-                animals.append(f"{species1}_{count1 or '1'}")
-            if species2:
-                animals.append(f"{species2}_{count2 or '1'}")
-            animal_str = "_".join(animals) if animals else "Unknown"
-            
-            # Format date
-            date_str = self._format_date_for_filename(date_value)
-            
-            # Special names
+            unspecified_bartgeier = data.get('Unbestimmt') == 'Bg'
+
+            animals = self._process_animals_for_filename(
+                data.get('Art 1'), data.get('Anzahl 1'),
+                data.get('Art 2'), data.get('Anzahl 2'),
+                data.get('Art 3'), data.get('Anzahl 3'),
+                data.get('Art 4'), data.get('Anzahl 4'),
+                unspecified_bartgeier=unspecified_bartgeier
+            )
+            animal_str = "_".join(animals)
+
+            date_str = self._format_date_for_filename(date_value) or "unknown-date"
+
             special_names = []
             if generl_checked:
                 special_names.append("Generl")
             if luisa_checked:
                 special_names.append("Luisa")
-            special_str = "_".join(special_names) if special_names else ""
-            
-            # Generate filename
+            special_str = "_".join(special_names)
+
+            parts = [
+                location,
+                f"{int(new_id):04d}",
+                date_str
+            ]
+
             if special_str:
-                new_name = f"{location}_{new_id:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
-            else:
-                new_name = f"{location}_{new_id:04d}_{date_str}_{animal_str}.jpeg"
-            
+                parts.append(special_str)
+            if animal_str:
+                parts.append(animal_str)
+
+            new_name = "_".join([p for p in parts if p]) + ".jpeg"
             return new_name
         except Exception as e:
             print(f"Error generating preview filename: {e}")
             return None
 
-    def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked):  # Updated signature
+    def _generate_new_filename(self, current_filename, location, date, species1, count1, species2, count2, species3, count3, species4, count4, generl_checked, luisa_checked, unspecified_bartgeier=False):  # Updated signature
         import re
         
         # Extract number from current filename (e.g., fotofallen_2025_123.jpeg -> 123)
@@ -1298,8 +1303,14 @@ class ImageAnalyzer:
         date_str = self._format_date_for_filename(date)
         
         # Process animals (updated to include species 3 and 4)
-        animals = self._process_animals_for_filename(species1, count1, species2, count2, species3, count3, species4, count4)  # Updated
-        animal_str = "_".join(animals) if animals else "Unknown"
+        animals = self._process_animals_for_filename(
+            species1, count1,
+            species2, count2,
+            species3, count3,
+            species4, count4,
+            unspecified_bartgeier=unspecified_bartgeier
+        )
+        animal_str = "_".join(animals)
         
         # Get special names
         special_names = []
@@ -1307,21 +1318,28 @@ class ImageAnalyzer:
             special_names.append("Generl")
         if luisa_checked:
             special_names.append("Luisa")
-        special_str = "_".join(special_names) if special_names else ""
+        special_str = "_".join(special_names)
         
-        # Build new filename: location_NRNR_MM.DD.YY_[Generl_][Luisa_]Animal_count.jpeg
+        parts = [
+            location,
+            f"{nr:04d}",
+            date_str
+        ]
+
         if special_str:
-            new_name = f"{location}_{nr:04d}_{date_str}_{special_str}_{animal_str}.jpeg"
-        else:
-            new_name = f"{location}_{nr:04d}_{date_str}_{animal_str}.jpeg"
-            
+            parts.append(special_str)
+        if animal_str:
+            parts.append(animal_str)
+
+        new_name = "_".join([p for p in parts if p]) + ".jpeg"
+        
         return new_name
 
     def _convert_date_to_new_format(self, date_str):
         """Backwards compatibility wrapper (uses _format_date_for_filename)."""
         return self._format_date_for_filename(date_str)
 
-    def _process_animals_for_filename(self, species1, count1, species2, count2, species3, count3, species4, count4):  # Updated signature
+    def _process_animals_for_filename(self, species1, count1, species2, count2, species3, count3, species4, count4, unspecified_bartgeier=False):  # Updated signature
         """Process animal information for filename according to renamer specifications."""
         animals = []
         
@@ -1339,19 +1357,29 @@ class ImageAnalyzer:
                     except (ValueError, TypeError):
                         pass
                 
+                normalized = animal.strip()
+                if not normalized:
+                    continue
+                normalized_lower = normalized.lower()
+                if "bartgeier" in normalized_lower:
+                    continue
+
                 # Handle special animal codes (matching the renamer script logic)
-                if animal.upper() == 'RK':
+                if normalized.upper() == 'RK':
                     animals.append(f"Rabenkrähe{count_suffix}")
-                elif animal.lower() == 'rk':
+                elif normalized_lower == 'rk':
                     animals.append(f"Kolkrabe{count_suffix}")
-                elif animal.upper() == 'RV':
+                elif normalized.upper() == 'RV':
                     animals.append(f"Kolkrabe{count_suffix}")  # Assuming RV is also Kolkrabe
-                elif animal.lower() in ['fuchs', 'marder']:
-                    animals.append(f"{animal.capitalize()}{count_suffix}")
-                elif animal.lower() == 'gams':
+                elif normalized_lower in ['fuchs', 'marder']:
+                    animals.append(f"{normalized.capitalize()}{count_suffix}")
+                elif normalized_lower == 'gams':
                     animals.append(f"Gämse{count_suffix}")
-                elif animal:  # Any other animal
-                    animals.append(f"{animal}{count_suffix}")
+                else:  # Any other animal
+                    animals.append(f"{normalized}{count_suffix}")
+
+        if unspecified_bartgeier:
+            animals.append("Unbestimmt_Bartgeier")
         
         return animals
 
@@ -1410,6 +1438,15 @@ class ImageAnalyzer:
         processed_date = self._process_date_for_excel(date)
         processed_time = self._process_time_for_excel(time_str)
 
+        species_entries = self._collect_species_entries()
+        generl_checked = self.generl_var.get()
+        luisa_checked = self.luisa_var.get()
+        filtered_species, bartgeier_present, unspecified_bartgeier = self._split_bartgeier_entries(
+            species_entries,
+            generl_checked,
+            luisa_checked
+        )
+
         # Prepare data structure
         data = {
             'Nr. ': new_id,
@@ -1418,23 +1455,28 @@ class ImageAnalyzer:
             'Datum_Text': date,        # Preserve original text for filenames
             'Uhrzeit': processed_time,  # Use processed time
             'Uhrzeit_Text': time_str,
-            'Generl': 'X' if self.generl_var.get() else '',
-            'Luisa': 'X' if self.luisa_var.get() else '',
-            'Unbestimmt': 'Bg' if 'Bartgeier' in self.animals_text.get(1.0, tk.END) else '',
+            'Generl': 'X' if generl_checked else '',
+            'Luisa': 'X' if luisa_checked else '',
+            'Unbestimmt': 'Bg' if unspecified_bartgeier else '',
             'Aktivität': self.aktivitat_var.get(),
-            'Art 1': self.species1_var.get().strip(),
-            'Anzahl 1': self.count1_var.get().strip(),
-            'Art 2': self.species2_var.get().strip(),
-            'Anzahl 2': self.count2_var.get().strip(),
-            'Art 3': self.species3_var.get().strip(),
-            'Anzahl 3': self.count3_var.get().strip(),
-            'Art 4': self.species4_var.get().strip(),
-            'Anzahl 4': self.count4_var.get().strip(),
             'Interaktion': self.interaktion_var.get(),
             'Sonstiges': self.sonstiges_text.get(1.0, tk.END).strip(),
             'filename': os.path.basename(image_file),
-            'original_filename': image_file
+            'original_filename': image_file,
+            'bartgeier_present': bartgeier_present,
+            'bartgeier_unbestimmt': unspecified_bartgeier
         }
+
+        for idx in range(4):
+            art_key = f'Art {idx + 1}'
+            count_key = f'Anzahl {idx + 1}'
+            if idx < len(filtered_species):
+                entry = filtered_species[idx]
+                data[art_key] = entry['species']
+                data[count_key] = entry['count']
+            else:
+                data[art_key] = ''
+                data[count_key] = ''
 
         # Save to Excel using I/O module (no duplication)
         try:
