@@ -5,11 +5,10 @@ REM Run this on a Windows machine with Python and PyInstaller installed
 echo 🚀 Kamerafallen Tools - Windows Packaging v2.0
 echo ==================================================
 
-REM Clean previous builds
+REM Clean previous builds (but keep spec files)
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist __pycache__ rmdir /s /q __pycache__
-if exist *.spec del *.spec
 
 echo 🧹 Cleaned build directories
 
@@ -18,9 +17,24 @@ echo 📦 Installing requirements...
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
 
+REM Check if spec file exists
+if not exist "KamerafallenTools.spec" (
+    echo ❌ ERROR: KamerafallenTools.spec not found
+    echo Make sure you're in the correct directory
+    pause
+    exit /b 1
+)
+
 REM Build executable using optimized approach
 echo 🔧 Building Windows executable...
+echo This may take several minutes...
 python -m PyInstaller KamerafallenTools.spec
+if errorlevel 1 (
+    echo ❌ ERROR: PyInstaller build failed
+    echo Check the error messages above for details
+    pause
+    exit /b 1
+)
 
 if exist "dist\KamerafallenTools.exe" (
     echo ✅ Build successful!
