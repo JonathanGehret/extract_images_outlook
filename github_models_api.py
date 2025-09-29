@@ -6,8 +6,34 @@ wraps the lower-level request logic and parsing.
 """
 import base64
 from datetime import datetime
+from pathlib import Path
+import json
 import re
+import traceback
 import requests
+
+
+LOG_DIR = Path.home() / ".kamerafallen-tools"
+try:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
+LOG_PATH = LOG_DIR / "analyzer_debug.log"
+
+
+def _log_debug(message: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_line = f"[{timestamp}] [API] {message}"
+    try:
+        with LOG_PATH.open("a", encoding="utf-8") as log_file:
+            log_file.write(log_line + "\n")
+    except Exception:
+        # Last resort: print to stdout (may be captured by callers)
+        try:
+            print(log_line)
+        except Exception:
+            pass
 
 
 def analyze_with_github_models(image_path: str, token: str, animal_species: list):
@@ -85,7 +111,7 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
     if response.status_code == 200:
         result = response.json()
         analysis_text = result['choices'][0]['message']['content']
-        print("DEBUG: Raw analysis response:\n" + analysis_text)
+        _log_debug(f"Raw analysis response from {model_name}@{api_base} ->\n{analysis_text}")
         return parse_analysis_response(analysis_text)
     else:
         raise Exception(f"API returned {response.status_code}: {response.text}")
@@ -93,6 +119,52 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
 
 def parse_analysis_response(analysis_text: str):
     """Parse the structured response from the AI model into fields."""
+    # Handle JSON-style responses first
+    stripped = analysis_text.strip()
+    if stripped.startswith('{'):
+        try:
+            payload = json.loads(stripped)
+            return _parse_from_mapping(payload)
+        except Exception as exc:
+            _log_debug(f"Failed to parse JSON response: {exc}\n{traceback.format_exc()}")
+
+    animals_value, location_value, time_value, date_value = _parse_from_lines(analysis_text)
+    _log_debug(
+        "Parsed fields -> animals=%r, location=%r, time=%r, date=%r"
+        % (animals_value, location_value, time_value, date_value)
+    )
+    return animals_value, location_value, time_value, date_value
+
+
+def _parse_from_mapping(payload):
+    """Extract fields from dict-like payloads."""
+    # Normalize keys to lowercase without accents for easier lookup
+    def _normalized_keys(source):
+        items = []
+        for key, value in source.items():
+            if isinstance(value, dict):
+                items.extend(_normalized_keys(value))
+            else:
+                items.append((str(key).lower(), value))
+        return items
+
+    mapping = dict(_normalized_keys(payload))
+
+    animals_value = mapping.get('tiere') or mapping.get('animals') or ''
+    location_value = mapping.get('standort') or mapping.get('location') or ''
+    time_value = mapping.get('uhrzeit') or mapping.get('time') or ''
+    date_value = mapping.get('datum') or mapping.get('date') or ''
+
+    animals_value = _normalize_animals(animals_value)
+    location_value = _normalize_location(location_value)
+    time_value = _normalize_time(time_value)
+    date_value = _normalize_date(date_value)
+
+    return animals_value, location_value, time_value, date_value
+
+
+def _parse_from_lines(analysis_text: str):
+    """Parse free-form Markdown / text responses."""
     key_map = {
         'tiere': 'animals',
         'animals': 'animals',
@@ -120,12 +192,15 @@ def parse_analysis_response(analysis_text: str):
 
         # Remove typical bullet characters
         line = line.lstrip('•-*\t ').strip()
+        line = re.sub(r'^\d+\.\s*', '', line)
+        line = line.strip()
 
         # Attempt to split "KEY: value" or "KEY - value"
-        match = re.match(r'^(?P<key>[A-Za-zÄÖÜäöü]+)\s*[:\-]\s*(?P<value>.+)$', line)
+        match = re.match(r'^(?P<key>[A-Za-zÄÖÜäöü\s]+)\s*[:\-\u2013\u2014]\s*(?P<value>.+)$', line)
 
         if match:
             key_raw = match.group('key').strip().lower()
+            key_raw = key_raw.replace('*', '').strip()
             value = match.group('value').strip()
             mapped_key = key_map.get(key_raw)
 
@@ -178,44 +253,72 @@ def parse_analysis_response(analysis_text: str):
                 elif mapped_key == 'date' and not collected['date']:
                     collected['date'] = value
 
-    animals_value = ', '.join(filter(None, collected['animals']))
-    if not animals_value:
-        animals_value = 'Keine erkannt'
-
-    location_value = collected['location']
-    location_upper = location_value.upper()
-    if 'FP1' in location_upper:
-        location_value = 'FP1'
-    elif 'FP2' in location_upper:
-        location_value = 'FP2'
-    elif 'FP3' in location_upper:
-        location_value = 'FP3'
-    elif 'NISCHE' in location_upper:
-        location_value = 'Nische'
-
-    time_value = collected['time']
-    if time_value:
-        time_digits = re.findall(r'\d+', time_value)
-        if len(time_digits) >= 2:
-            hours = time_digits[0].zfill(2)
-            minutes = time_digits[1].zfill(2)
-            seconds = time_digits[2].zfill(2) if len(time_digits) >= 3 else '00'
-            time_value = f"{hours}:{minutes}:{seconds}"
-
-    date_value = collected['date']
-    if date_value:
-        date_value = date_value.replace('/', '.').replace('-', '.')
-        try:
-            parsed_date = datetime.strptime(date_value, '%d.%m.%Y')
-        except ValueError:
-            try:
-                parsed_date = datetime.strptime(date_value, '%Y.%m.%d')
-            except ValueError:
-                try:
-                    parsed_date = datetime.strptime(date_value, '%d.%m.%y')
-                except ValueError:
-                    parsed_date = None
-        if parsed_date:
-            date_value = parsed_date.strftime('%d.%m.%Y')
+    animals_value = _normalize_animals(collected['animals'])
+    location_value = _normalize_location(collected['location'])
+    time_value = _normalize_time(collected['time'])
+    date_value = _normalize_date(collected['date'])
 
     return animals_value, location_value, time_value, date_value
+
+
+def _normalize_animals(raw):
+    if isinstance(raw, list):
+        animals_value = ', '.join(filter(None, raw))
+    else:
+        animals_value = str(raw) if raw is not None else ''
+
+    animals_value = animals_value.strip()
+    if not animals_value:
+        animals_value = 'Keine erkannt'
+    return animals_value
+
+
+def _normalize_location(location_value):
+    location_value = str(location_value or '').strip()
+    location_upper = location_value.upper()
+    if 'FP1' in location_upper:
+        return 'FP1'
+    if 'FP2' in location_upper:
+        return 'FP2'
+    if 'FP3' in location_upper:
+        return 'FP3'
+    if 'NISCHE' in location_upper:
+        return 'Nische'
+    return location_value
+
+
+def _normalize_time(time_value):
+    time_value = str(time_value or '').strip()
+    if not time_value:
+        return ''
+    time_value = time_value.replace('Uhr', '').replace('uhr', '').strip()
+    time_digits = re.findall(r'\d+', time_value)
+    if len(time_digits) >= 2:
+        hours = time_digits[0].zfill(2)
+        minutes = time_digits[1].zfill(2)
+        seconds = time_digits[2].zfill(2) if len(time_digits) >= 3 else '00'
+        return f"{hours}:{minutes}:{seconds}"
+    return time_value
+
+
+def _normalize_date(date_value):
+    date_value = str(date_value or '').strip()
+    if not date_value:
+        return ''
+    date_value = date_value.replace('/', '.').replace('-', '.').replace(' ', '')
+    for fmt in ('%d.%m.%Y', '%Y.%m.%d', '%d.%m.%y', '%d.%m.%Y', '%Y%m%d'):
+        try:
+            parsed_date = datetime.strptime(date_value, fmt)
+            return parsed_date.strftime('%d.%m.%Y')
+        except ValueError:
+            continue
+    # Try extracting numeric components manually
+    digits = re.findall(r'\d+', date_value)
+    if len(digits) >= 3:
+        day = digits[0].zfill(2)
+        month = digits[1].zfill(2)
+        year = digits[2]
+        if len(year) == 2:
+            year = '20' + year
+        return f"{day}.{month}.{year}"
+    return date_value
