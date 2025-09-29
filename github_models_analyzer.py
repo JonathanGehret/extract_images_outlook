@@ -186,6 +186,8 @@ class AnalysisBuffer:
         self.failed = set()  # Failed analyses
         self.executor = ThreadPoolExecutor(max_workers=5)
         self.buffer_size = 3  # Keep 3 images ahead analyzed
+        self.retry_attempts = {}
+        self.max_retries = 2
         
     def get_analysis(self, image_index, force_analysis=False):
         """Get analysis result for image, trigger batch if not available.
@@ -200,15 +202,20 @@ class AnalysisBuffer:
         if image_index in self.buffer:
             result = self.buffer.pop(image_index)
             print(f"DEBUG: Found result in buffer for image {image_index}: {result.get('animals', 'N/A')}")
-            # Trigger next batch analysis only if force_analysis is True (from analyze button)
-            if force_analysis:
-                self._ensure_buffer_ahead(image_index + 1)
+            # Keep rolling buffer ahead regardless of trigger source
+            self._ensure_buffer_ahead(image_index + 1)
             return result
         elif image_index in self.analyzing:
             print(f"DEBUG: Image {image_index} is currently being analyzed")
             return "analyzing"
         elif image_index in self.failed:
             print(f"DEBUG: Image {image_index} analysis failed previously")
+            if force_analysis:
+                print(f"DEBUG: Forcing re-analysis for failed image {image_index}")
+                self.failed.discard(image_index)
+                self.retry_attempts[image_index] = 0
+                self._start_single_analysis(image_index)
+                return "analyzing"
             return "failed"
         else:
             # Only start analysis if explicitly requested (from analyze button)
@@ -218,6 +225,8 @@ class AnalysisBuffer:
                 return "analyzing"
             else:
                 print(f"DEBUG: Analysis not started for image {image_index} (not forced)")
+                # Proactively queue up analysis for upcoming images to keep buffer warm
+                self._ensure_buffer_ahead(image_index)
                 return "not_analyzed"
     
     def _ensure_buffer_ahead(self, current_index):
@@ -240,6 +249,7 @@ class AnalysisBuffer:
         if image_index >= len(self.analyzer.image_files):
             return
             
+        self.retry_attempts.setdefault(image_index, 0)
         self.analyzing.add(image_index)
         future = self.executor.submit(self._analyze_image, image_index)
         future.add_done_callback(lambda f: self._analysis_complete(image_index, f))
@@ -274,13 +284,22 @@ class AnalysisBuffer:
             )
             
             print(f"DEBUG: AI analysis result - animals: {animals}, location: {location}")
-            
+
+            animals_value = animals or 'Keine Tiere erkannt'
+            location_value = location or 'Unbekannt'
+            date_value = date_str or ''
+            time_value = time_str or ''
+            error_value = None
+
+            if animals_value.strip().lower() == 'error in analysis' and not location_value:
+                error_value = 'AI returned placeholder result'
+
             return {
-                'animals': animals or 'Keine Tiere erkannt',
-                'location': location or 'Unbekannt',
-                'date': date_str or '',
-                'time': time_str or '',
-                'error': None
+                'animals': animals_value,
+                'location': location_value,
+                'date': date_value,
+                'time': time_value,
+                'error': error_value
             }
                 
         except Exception as e:
@@ -302,10 +321,21 @@ class AnalysisBuffer:
         try:
             result = future.result()
             if result.get('error'):
-                self.failed.add(image_index)
-                print(f"Analysis failed for image {image_index}: {result['error']}")
+                attempts = self.retry_attempts.get(image_index, 0)
+                if attempts < self.max_retries:
+                    self.retry_attempts[image_index] = attempts + 1
+                    print(f"Retrying analysis for image {image_index} (attempt {attempts + 1}/{self.max_retries}) due to: {result['error']}")
+                    # Requeue analysis
+                    self._start_single_analysis(image_index)
+                    self.analyzer.root.after(0, self._update_buffer_status)
+                else:
+                    self.failed.add(image_index)
+                    self.retry_attempts.pop(image_index, None)
+                    print(f"Analysis failed for image {image_index}: {result['error']}")
+                    self.analyzer.root.after(0, self._update_buffer_status)
             else:
                 self.buffer[image_index] = result
+                self.retry_attempts.pop(image_index, None)
                 print(f"✓ Analysis complete for image {image_index}: {result['animals']}")
                 
                 # Update UI if this is the current image
@@ -314,6 +344,8 @@ class AnalysisBuffer:
                     
                 # Update buffer status
                 self.analyzer.root.after(0, self._update_buffer_status)
+                # Keep buffer rolling ahead on UI thread
+                self.analyzer.root.after(0, lambda idx=image_index + 1: self._ensure_buffer_ahead(idx))
                     
         except Exception as e:
             self.failed.add(image_index)
@@ -324,6 +356,7 @@ class AnalysisBuffer:
         try:
             # Parse animals to species and populate fields
             self.analyzer.parse_animals_to_species(result['animals'])
+            self.analyzer._update_special_checkboxes(result['animals'])
 
             # Update location and other fields
             self.analyzer.location_var.set(result['location'])
@@ -928,6 +961,8 @@ class ImageAnalyzer:
         self.count3_var.set("")    # New
         self.species4_var.set("")  # New
         self.count4_var.set("")    # New
+        self.generl_var.set(False)
+        self.luisa_var.set(False)
         self.animals_text.config(state='normal')
         self.animals_text.delete(1.0, tk.END)
         self.animals_text.config(state='disabled')
@@ -1005,6 +1040,7 @@ class ImageAnalyzer:
         print(f"DEBUG: Applying analysis result: {result}")
         # Parse animals to species and populate fields
         self.parse_animals_to_species(result['animals'])
+        self._update_special_checkboxes(result['animals'])
         
         # Update location and other fields
         self.location_var.set(result['location'])
@@ -1012,6 +1048,16 @@ class ImageAnalyzer:
             self.date_var.set(result['date'])
         if result.get('time'):
             self.time_var.set(result['time'])
+
+    def _update_special_checkboxes(self, animals_str):
+        """Auto-select Generl/Luisa checkboxes based on analysis output."""
+        text = (animals_str or '').lower()
+        generl_detected = 'generl' in text
+        luisa_detected = 'luisa' in text
+
+        # Only adjust automatically during analysis; manual overrides still possible afterward
+        self.generl_var.set(generl_detected)
+        self.luisa_var.set(luisa_detected)
 
     def _navigate_to_next_image(self):
         """Navigate to the next image with proper buffer handling."""
