@@ -137,3 +137,208 @@ Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofa
 [2025-09-29 16:11:10] DEBUG: AI analysis result - animals: Bartgeier (Generl), location: FP1
 [2025-09-29 16:11:10] ✓ Analysis complete for image 2: Bartgeier (Generl)
 [2025-09-29 16:11:17] DEBUG: Opening debug log at C:\Users\LBV-Admin\.kamerafallen-tools\analyzer_debug.log
+[2025-09-29 16:11:24] DEBUG: AI analysis result - animals: Keine erkannt, location: 
+[2025-09-29 16:11:24] ✓ Analysis complete for image 3: Keine erkannt
+[2025-09-29 16:27:32] ====================================================================
+[2025-09-29 16:27:32] DEBUG: Analyzer session started
+[2025-09-29 16:27:32] DEBUG: Working directory: C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist
+[2025-09-29 16:27:32] DEBUG: Debug log path: C:\Users\LBV-Admin\.kamerafallen-tools\analyzer_debug.log
+[2025-09-29 16:27:32] DEBUG: Checking potential .env locations:
+[2025-09-29 16:27:32]   -> C:\Users\LBV-Admin\AppData\Local\Temp\_MEI78082\.env
+[2025-09-29 16:27:32]   -> C:\Users\LBV-Admin\AppData\Local\Temp\_MEI78082\.env.local
+[2025-09-29 16:27:32]   -> C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env
+[2025-09-29 16:27:32]   -> C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env.local
+[2025-09-29 16:27:32] DEBUG: Env candidate not found: C:\Users\LBV-Admin\AppData\Local\Temp\_MEI78082\.env
+[2025-09-29 16:27:32] DEBUG: Env candidate not found: C:\Users\LBV-Admin\AppData\Local\Temp\_MEI78082\.env.local
+[2025-09-29 16:27:32] DEBUG: Env candidate not found: C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env
+[2025-09-29 16:27:32] DEBUG: Env candidate not found: C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env.local
+[2025-09-29 16:27:33] DEBUG: No .env files loaded; relying on system environment
+[2025-09-29 16:27:33] DEBUG: GitHub token detected: No (length=0)
+[2025-09-29 16:27:33] DEBUG: IMAGES_FOLDER: 
+[2025-09-29 16:27:33] DEBUG: OUTPUT_EXCEL: 
+[2025-09-29 16:27:33] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:27:38] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:27:38] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:27:38] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:27:38] DEBUG: Starting real AI analysis with buffer system
+[2025-09-29 16:27:38] DEBUG: Getting analysis for image 0, force_analysis=True
+[2025-09-29 16:27:38] DEBUG: Buffer state - buffered: 0, analyzing: 0, failed: 0
+[2025-09-29 16:27:38] DEBUG: Starting batch analysis from image 0
+[2025-09-29 16:27:38] DEBUG: Analyzing image 0: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\FP1_0201_07.09.25_Steinadler_1_Gämse_5.jpeg
+[2025-09-29 16:27:38] DEBUG: Analyzing image 1: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_101_1.jpeg
+[2025-09-29 16:27:38] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:27:38] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:27:38] DEBUG: Analyzing image 2: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_102_1.jpeg
+[2025-09-29 16:27:38] DEBUG: Analyzing image 3: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_103_1.jpeg
+[2025-09-29 16:27:38] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:27:38] DEBUG: Analyzing image 4: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_104_1.jpeg
+[2025-09-29 16:27:38] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:27:38] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:27:38] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:27:38] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:27:38] ✓ Analysis complete for image 0: Error in analysis
+[2025-09-29 16:27:38] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:27:38] ✓ Analysis complete for image 2: Error in analysis
+[2025-09-29 16:27:38] ✓ Analysis complete for image 1: Error in analysis
+[2025-09-29 16:27:38] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:27:38] ✓ Analysis complete for image 3: Error in analysis
+[2025-09-29 16:27:38] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:27:38] ✓ Analysis complete for image 4: Error in analysis
+[2025-09-29 16:27:43] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:27:44] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:27:46] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:27:46] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:27:46] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:27:46] DEBUG: Starting real AI analysis with buffer system
+[2025-09-29 16:27:46] DEBUG: Getting analysis for image 0, force_analysis=True
+[2025-09-29 16:27:46] DEBUG: Buffer state - buffered: 5, analyzing: 0, failed: 0
+[2025-09-29 16:27:46] DEBUG: Found result in buffer for image 0: Error in analysis
+[2025-09-29 16:27:46] DEBUG: Applying analysis result: {'animals': 'Error in analysis', 'location': 'Unbekannt', 'date': '', 'time': '', 'error': None}
+[2025-09-29 16:27:51] DEBUG: Next image button pressed
+[2025-09-29 16:27:51] DEBUG: Navigating to image 2/566
+[2025-09-29 16:27:51] DEBUG: Getting analysis for image 1, force_analysis=False
+[2025-09-29 16:27:51] DEBUG: Buffer state - buffered: 4, analyzing: 0, failed: 0
+[2025-09-29 16:27:51] DEBUG: Found result in buffer for image 1: Error in analysis
+[2025-09-29 16:27:51] DEBUG: Image 1 already analyzed
+[2025-09-29 16:27:51] DEBUG: Applying analysis result: {'animals': 'Error in analysis', 'location': 'Unbekannt', 'date': '', 'time': '', 'error': None}
+[2025-09-29 16:27:52] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:27:52] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:27:52] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:27:52] DEBUG: Starting real AI analysis with buffer system
+[2025-09-29 16:27:52] DEBUG: Getting analysis for image 1, force_analysis=True
+[2025-09-29 16:27:52] DEBUG: Buffer state - buffered: 3, analyzing: 0, failed: 0
+[2025-09-29 16:27:52] DEBUG: Starting batch analysis from image 1
+[2025-09-29 16:27:52] DEBUG: Analyzing image 1: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_101_1.jpeg
+[2025-09-29 16:27:52] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:27:57] DEBUG: Next image button pressed
+[2025-09-29 16:27:57] DEBUG: Navigating to image 3/566
+[2025-09-29 16:27:57] DEBUG: Getting analysis for image 2, force_analysis=False
+[2025-09-29 16:27:57] DEBUG: Buffer state - buffered: 3, analyzing: 2, failed: 0
+[2025-09-29 16:27:57] DEBUG: Found result in buffer for image 2: Error in analysis
+[2025-09-29 16:27:57] DEBUG: Image 2 already analyzed
+[2025-09-29 16:27:57] DEBUG: Applying analysis result: {'animals': 'Error in analysis', 'location': 'Unbekannt', 'date': '', 'time': '', 'error': None}
+[2025-09-29 16:28:25] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:28:25] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:28:25] ✓ Analysis complete for image 5: Error in analysis
+[2025-09-29 16:28:25] ✓ Analysis complete for image 1: Error in analysis
+[2025-09-29 16:28:26] Exception in analysis for image 1: main thread is not in main loop
+[2025-09-29 16:29:38] ====================================================================
+[2025-09-29 16:29:38] DEBUG: Analyzer session started
+[2025-09-29 16:29:38] DEBUG: Working directory: C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist
+[2025-09-29 16:29:38] DEBUG: Debug log path: C:\Users\LBV-Admin\.kamerafallen-tools\analyzer_debug.log
+[2025-09-29 16:29:38] DEBUG: Checking potential .env locations:
+[2025-09-29 16:29:38]   -> C:\Users\LBV-Admin\AppData\Local\Temp\_MEI45082\.env
+[2025-09-29 16:29:38]   -> C:\Users\LBV-Admin\AppData\Local\Temp\_MEI45082\.env.local
+[2025-09-29 16:29:38]   -> C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env
+[2025-09-29 16:29:38]   -> C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env.local
+[2025-09-29 16:29:38] DEBUG: Env candidate not found: C:\Users\LBV-Admin\AppData\Local\Temp\_MEI45082\.env
+[2025-09-29 16:29:38] DEBUG: Env candidate not found: C:\Users\LBV-Admin\AppData\Local\Temp\_MEI45082\.env.local
+[2025-09-29 16:29:38] DEBUG: Env candidate not found: C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env
+[2025-09-29 16:29:38] DEBUG: Env candidate not found: C:\Users\LBV-Admin\Documents\BFD Bartgeier Docs\Bartgeier_Apps\extract_images_outlook-main\dist\.env.local
+[2025-09-29 16:29:38] DEBUG: No .env files loaded; relying on system environment
+[2025-09-29 16:29:38] DEBUG: GitHub token detected: Yes (length=93)
+[2025-09-29 16:29:38] DEBUG: IMAGES_FOLDER: C:\Users\LBV-Admin\Documents\Fotofallendaten 2025\Fotos_2025_01
+[2025-09-29 16:29:38] DEBUG: OUTPUT_EXCEL: 
+[2025-09-29 16:29:39] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:29:44] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:29:44] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:29:44] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:30:04] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:30:04] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:30:04] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:30:04] DEBUG: Starting real AI analysis with buffer system
+[2025-09-29 16:30:05] DEBUG: Getting analysis for image 0, force_analysis=True
+[2025-09-29 16:30:05] DEBUG: Buffer state - buffered: 0, analyzing: 0, failed: 0
+[2025-09-29 16:30:05] DEBUG: Starting batch analysis from image 0
+[2025-09-29 16:30:05] DEBUG: Analyzing image 0: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\FP1_0201_07.09.25_Steinadler_1_Gämse_5.jpeg
+[2025-09-29 16:30:05] DEBUG: Analyzing image 1: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_101_1.jpeg
+[2025-09-29 16:30:05] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:30:05] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:30:05] DEBUG: Analyzing image 2: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_102_1.jpeg
+[2025-09-29 16:30:05] DEBUG: Analyzing image 3: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_103_1.jpeg
+[2025-09-29 16:30:05] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:30:05] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:30:05] DEBUG: Analyzing image 4: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02/Kopie - Kopie\fotofallen_2025_104_1.jpeg
+[2025-09-29 16:30:05] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:30:10] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:30:10] ✓ Analysis complete for image 2: Error in analysis
+[2025-09-29 16:30:11] [API] Raw analysis response from gpt-4o@https://models.inference.ai.azure.com ->
+TIERE: 1 Rabenvogel  
+STANDORT: FP1  
+UHRZEIT: 11:52:06  
+DATUM: 22.08.2025  
+[2025-09-29 16:30:11] [API] Parsed fields -> animals='1 Rabenvogel', location='FP1', time='11:52:06', date='22.08.2025'
+[2025-09-29 16:30:11] DEBUG: AI analysis result - animals: 1 Rabenvogel, location: FP1
+[2025-09-29 16:30:11] ✓ Analysis complete for image 0: 1 Rabenvogel
+[2025-09-29 16:30:11] [API] Raw analysis response from gpt-4o@https://models.inference.ai.azure.com ->
+TIERE: 1 Rabenvogel  
+STANDORT: FP1  
+UHRZEIT: 18:36:53  
+DATUM: 21.08.2025  
+[2025-09-29 16:30:11] [API] Parsed fields -> animals='1 Rabenvogel', location='FP1', time='18:36:53', date='21.08.2025'
+[2025-09-29 16:30:11] DEBUG: AI analysis result - animals: 1 Rabenvogel, location: FP1
+[2025-09-29 16:30:11] ✓ Analysis complete for image 3: 1 Rabenvogel
+[2025-09-29 16:30:17] [API] Raw analysis response from gpt-4o@https://models.inference.ai.azure.com ->
+TIERE: Bartgeier (Generl)  
+STANDORT: FP1  
+UHRZEIT: 12:20:04  
+DATUM: 21.08.2025  
+[2025-09-29 16:30:17] [API] Parsed fields -> animals='Bartgeier (Generl)', location='FP1', time='12:20:04', date='21.08.2025'
+[2025-09-29 16:30:17] DEBUG: AI analysis result - animals: Bartgeier (Generl), location: FP1
+[2025-09-29 16:30:17] ✓ Analysis complete for image 4: Bartgeier (Generl)
+[2025-09-29 16:30:18] [API] Raw analysis response from gpt-5@https://models.inference.ai.azure.com ->
+
+[2025-09-29 16:30:18] [API] Parsed fields -> animals='Keine erkannt', location='', time='', date=''
+[2025-09-29 16:30:18] DEBUG: AI analysis result - animals: Keine erkannt, location: 
+[2025-09-29 16:30:18] ✓ Analysis complete for image 1: Keine erkannt
+[2025-09-29 16:30:23] DEBUG: Opening debug log at C:\Users\LBV-Admin\.kamerafallen-tools\analyzer_debug.log
+[2025-09-29 16:31:20] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:31:24] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:31:24] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:31:24] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:31:24] DEBUG: Starting real AI analysis with buffer system
+[2025-09-29 16:31:24] DEBUG: Getting analysis for image 0, force_analysis=True
+[2025-09-29 16:31:24] DEBUG: Buffer state - buffered: 0, analyzing: 0, failed: 0
+[2025-09-29 16:31:24] DEBUG: Starting batch analysis from image 0
+[2025-09-29 16:31:24] DEBUG: Analyzing image 0: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02\FP1_0201_07.09.25_Steinadler_1_Gämse_5.jpeg
+[2025-09-29 16:31:24] DEBUG: Analyzing image 1: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02\fotofallen_2025_101_1.jpeg
+[2025-09-29 16:31:24] DEBUG: Analyzing image 2: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02\fotofallen_2025_102_1.jpeg
+[2025-09-29 16:31:24] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:31:24] DEBUG: Analyzing image 3: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02\fotofallen_2025_103_1.jpeg
+[2025-09-29 16:31:24] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:31:24] DEBUG: Analyzing image 4: C:/Users/LBV-Admin/Documents/Fotofallendaten 2025/Fotos_2025_01/fotos_batch_02\fotofallen_2025_104_1.jpeg
+[2025-09-29 16:31:24] DEBUG: Using token for analysis (length=93)
+[2025-09-29 16:31:29] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:31:31] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:31:31] ❌ Testmodus deaktiviert - KI-Analyse verfügbar
+[2025-09-29 16:31:32] DEBUG: Analyze button pressed - Dummy mode: False
+[2025-09-29 16:31:32] DEBUG: GitHub token available: Yes (length=93)
+[2025-09-29 16:31:32] DEBUG: Environment GITHUB_MODELS_TOKEN: Set
+[2025-09-29 16:31:32] DEBUG: Starting real AI analysis with buffer system
+[2025-09-29 16:31:32] DEBUG: Getting analysis for image 0, force_analysis=True
+[2025-09-29 16:31:32] DEBUG: Buffer state - buffered: 0, analyzing: 5, failed: 0
+[2025-09-29 16:31:32] DEBUG: Image 0 is currently being analyzed
+[2025-09-29 16:31:37] [API] Raw analysis response from gpt-4o@https://models.inference.ai.azure.com ->
+TIERE: 1 Rabenvogel  
+STANDORT: FP1  
+UHRZEIT: 11:52:06  
+DATUM: 22.08.2025  
+[2025-09-29 16:31:37] [API] Parsed fields -> animals='1 Rabenvogel', location='FP1', time='11:52:06', date='22.08.2025'
+[2025-09-29 16:31:37] DEBUG: AI analysis result - animals: 1 Rabenvogel, location: FP1
+[2025-09-29 16:31:37] ✓ Analysis complete for image 0: 1 Rabenvogel
+[2025-09-29 16:31:39] DEBUG: AI analysis result - animals: Error in analysis, location: 
+[2025-09-29 16:31:39] ✓ Analysis complete for image 2: Error in analysis
+[2025-09-29 16:31:40] [API] Raw analysis response from gpt-4o@https://models.inference.ai.azure.com ->
+TIERE: Bartgeier (Generl), 1 Rabenvogel  
+STANDORT: FP1  
+UHRZEIT: 11:00:53  
+DATUM: 22.08.2025  
+[2025-09-29 16:31:40] [API] Parsed fields -> animals='Bartgeier (Generl), 1 Rabenvogel', location='FP1', time='11:00:53', date='22.08.2025'
+[2025-09-29 16:31:40] DEBUG: AI analysis result - animals: Bartgeier (Generl), 1 Rabenvogel, location: FP1
+[2025-09-29 16:31:40] ✓ Analysis complete for image 1: Bartgeier (Generl), 1 Rabenvogel
+[2025-09-29 16:31:42] [API] Raw analysis response from gpt-5@https://models.inference.ai.azure.com ->
+
+[2025-09-29 16:31:42] [API] Parsed fields -> animals='Keine erkannt', location='', time='', date=''
+[2025-09-29 16:31:42] DEBUG: AI analysis result - animals: Keine erkannt, location: 
+[2025-09-29 16:31:42] ✓ Analysis complete for image 3: Keine erkannt
+[2025-09-29 16:31:43] DEBUG: Opening debug log at C:\Users\LBV-Admin\.kamerafallen-tools\analyzer_debug.log
