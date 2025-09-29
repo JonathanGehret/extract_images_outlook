@@ -992,6 +992,7 @@ class ImageAnalyzer:
 
     def _apply_analysis_result(self, result):
         """Apply analysis result to the GUI fields."""
+        print(f"DEBUG: Applying analysis result: {result}")
         # Parse animals to species and populate fields
         self.parse_animals_to_species(result['animals'])
         

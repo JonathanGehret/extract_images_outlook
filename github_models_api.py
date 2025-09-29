@@ -5,6 +5,8 @@ Contains analyze_with_github_models(image_path, token, animal_species) which
 wraps the lower-level request logic and parsing.
 """
 import base64
+from datetime import datetime
+import re
 import requests
 
 
@@ -83,6 +85,7 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
     if response.status_code == 200:
         result = response.json()
         analysis_text = result['choices'][0]['message']['content']
+        print("DEBUG: Raw analysis response:\n" + analysis_text)
         return parse_analysis_response(analysis_text)
     else:
         raise Exception(f"API returned {response.status_code}: {response.text}")
@@ -90,33 +93,129 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
 
 def parse_analysis_response(analysis_text: str):
     """Parse the structured response from the AI model into fields."""
-    animals = "Keine erkannt"  # Default to German for consistency
-    location = ""
-    time_str = ""
-    date_str = ""
+    key_map = {
+        'tiere': 'animals',
+        'animals': 'animals',
+        'standort': 'location',
+        'location': 'location',
+        'uhrzeit': 'time',
+        'time': 'time',
+        'datum': 'date',
+        'date': 'date',
+    }
 
-    lines = analysis_text.split('\n')
-    for line in lines:
-        line = line.strip()
-        if line.startswith('TIERE:') or line.startswith('ANIMALS:'):  # Support both
-            animals = line.replace('TIERE:', '').replace('ANIMALS:', '').strip()
-        elif line.startswith('STANDORT:') or line.startswith('LOCATION:'):
-            location = line.replace('STANDORT:', '').replace('LOCATION:', '').strip()
-            if 'FP1' in location.upper():
-                location = 'FP1'
-            elif 'FP2' in location.upper():
-                location = 'FP2'
-            elif 'FP3' in location.upper():
-                location = 'FP3'
-            elif 'NISCHE' in location.upper():
-                location = 'Nische'
-        elif line.startswith('UHRZEIT:') or line.startswith('TIME:'):
-            time_str = line.replace('UHRZEIT:', '').replace('TIME:', '').strip()
-            if len(time_str.split(':')) == 2:
-                time_str = f"{time_str}:00"
-        elif line.startswith('DATUM:') or line.startswith('DATE:'):
-            date_str = line.replace('DATUM:', '').replace('DATE:', '').strip()
-            if '-' in date_str and '.' not in date_str:
-                date_str = date_str.replace('-', '.')
+    collected = {
+        'animals': [],
+        'location': '',
+        'time': '',
+        'date': '',
+    }
 
-    return animals, location, time_str, date_str
+    pending_key = None
+    for raw_line in analysis_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            pending_key = None
+            continue
+
+        # Remove typical bullet characters
+        line = line.lstrip('•-*\t ').strip()
+
+        # Attempt to split "KEY: value" or "KEY - value"
+        match = re.match(r'^(?P<key>[A-Za-zÄÖÜäöü]+)\s*[:\-]\s*(?P<value>.+)$', line)
+
+        if match:
+            key_raw = match.group('key').strip().lower()
+            value = match.group('value').strip()
+            mapped_key = key_map.get(key_raw)
+
+            if mapped_key:
+                if value == '':
+                    pending_key = mapped_key
+                    continue
+
+                if mapped_key == 'animals':
+                    collected['animals'].append(value)
+                    pending_key = mapped_key  # allow list continuation
+                elif mapped_key == 'location':
+                    collected['location'] = value
+                    pending_key = None
+                elif mapped_key == 'time':
+                    collected['time'] = value
+                    pending_key = None
+                elif mapped_key == 'date':
+                    collected['date'] = value
+                    pending_key = None
+                continue
+
+        # Handle follow-up lines after a key declaration
+        if pending_key:
+            value = line.strip()
+            if pending_key == 'animals':
+                collected['animals'].append(value)
+            elif pending_key == 'location' and not collected['location']:
+                collected['location'] = value
+            elif pending_key == 'time' and not collected['time']:
+                collected['time'] = value
+            elif pending_key == 'date' and not collected['date']:
+                collected['date'] = value
+            continue
+
+        # Attempt fallback pattern "KEY value" without colon
+        fallback_match = re.match(r'^(?P<key>[A-Za-zÄÖÜäöü]+)\s+(?P<value>.+)$', line)
+        if fallback_match:
+            key_raw = fallback_match.group('key').strip().lower()
+            value = fallback_match.group('value').strip()
+            mapped_key = key_map.get(key_raw)
+            if mapped_key:
+                if mapped_key == 'animals':
+                    collected['animals'].append(value)
+                    pending_key = mapped_key
+                elif mapped_key == 'location' and not collected['location']:
+                    collected['location'] = value
+                elif mapped_key == 'time' and not collected['time']:
+                    collected['time'] = value
+                elif mapped_key == 'date' and not collected['date']:
+                    collected['date'] = value
+
+    animals_value = ', '.join(filter(None, collected['animals']))
+    if not animals_value:
+        animals_value = 'Keine erkannt'
+
+    location_value = collected['location']
+    location_upper = location_value.upper()
+    if 'FP1' in location_upper:
+        location_value = 'FP1'
+    elif 'FP2' in location_upper:
+        location_value = 'FP2'
+    elif 'FP3' in location_upper:
+        location_value = 'FP3'
+    elif 'NISCHE' in location_upper:
+        location_value = 'Nische'
+
+    time_value = collected['time']
+    if time_value:
+        time_digits = re.findall(r'\d+', time_value)
+        if len(time_digits) >= 2:
+            hours = time_digits[0].zfill(2)
+            minutes = time_digits[1].zfill(2)
+            seconds = time_digits[2].zfill(2) if len(time_digits) >= 3 else '00'
+            time_value = f"{hours}:{minutes}:{seconds}"
+
+    date_value = collected['date']
+    if date_value:
+        date_value = date_value.replace('/', '.').replace('-', '.')
+        try:
+            parsed_date = datetime.strptime(date_value, '%d.%m.%Y')
+        except ValueError:
+            try:
+                parsed_date = datetime.strptime(date_value, '%Y.%m.%d')
+            except ValueError:
+                try:
+                    parsed_date = datetime.strptime(date_value, '%d.%m.%y')
+                except ValueError:
+                    parsed_date = None
+        if parsed_date:
+            date_value = parsed_date.strftime('%d.%m.%Y')
+
+    return animals_value, location_value, time_value, date_value
