@@ -29,15 +29,40 @@ import github_models_io as gm_io
 # Try to load .env file if available
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # In bundled executable, look for .env in the executable directory
+    if hasattr(sys, '_MEIPASS'):
+        # Running from PyInstaller bundle
+        bundle_dir = os.path.dirname(sys.executable)
+        env_file = os.path.join(bundle_dir, '.env')
+        if os.path.exists(env_file):
+            print(f"DEBUG: Loading .env from bundle directory: {env_file}")
+            load_dotenv(env_file)
+        else:
+            print(f"DEBUG: .env not found in bundle directory: {env_file}")
+            # Try in the temp directory where PyInstaller extracts files
+            temp_env = os.path.join(sys._MEIPASS, '.env')
+            if os.path.exists(temp_env):
+                print(f"DEBUG: Loading .env from temp directory: {temp_env}")
+                load_dotenv(temp_env)
+            else:
+                print("DEBUG: .env not found in temp directory either")
+    else:
+        # Running from source
+        load_dotenv()
+        print("DEBUG: Loaded .env from source directory")
 except ImportError:
-    pass  # dotenv not available, continue without it
+    print("DEBUG: dotenv not available, continuing without it")
 
 # Configuration (can be overridden by env)
 IMAGES_FOLDER = os.environ.get("ANALYZER_IMAGES_FOLDER", "")
 OUTPUT_EXCEL = os.environ.get("ANALYZER_OUTPUT_EXCEL", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN", "")
 START_FROM_IMAGE = 1
+
+# Debug token loading
+print(f"DEBUG: GITHUB_TOKEN loaded: {'Yes' if GITHUB_TOKEN else 'No'} ({'***' if GITHUB_TOKEN else 'empty'})")
+print(f"DEBUG: IMAGES_FOLDER: {IMAGES_FOLDER}")
+print(f"DEBUG: OUTPUT_EXCEL: {OUTPUT_EXCEL}")
 
 ANIMAL_SPECIES = [
     "Bartgeier", "Steinadler", "Kolkabe",
@@ -123,8 +148,12 @@ class AnalysisBuffer:
             images_folder = self.analyzer.images_folder or IMAGES_FOLDER
             image_path = os.path.join(images_folder, image_file)
             
-            # Check if token is available
-            if not GITHUB_TOKEN:
+            print(f"DEBUG: Analyzing image {image_index}: {image_path}")
+            
+            # Check if token is available (check both global and environment)
+            token = GITHUB_TOKEN or os.environ.get('GITHUB_MODELS_TOKEN', '')
+            if not token:
+                print(f"DEBUG: No token available for analysis")
                 return {
                     'animals': 'Token fehlt',
                     'location': 'Unbekannt',
@@ -133,10 +162,14 @@ class AnalysisBuffer:
                     'error': 'GITHUB_MODELS_TOKEN nicht gesetzt'
                 }
             
+            print(f"DEBUG: Using token for analysis (length: {len(token)})")
+            
             # Use existing AI analysis function
             animals, location, time_str, date_str = gm_api.analyze_with_github_models(
-                image_path, GITHUB_TOKEN, ANIMAL_SPECIES
+                image_path, token, ANIMAL_SPECIES
             )
+            
+            print(f"DEBUG: AI analysis result - animals: {animals}, location: {location}")
             
             return {
                 'animals': animals or 'Keine Tiere erkannt',
@@ -148,6 +181,8 @@ class AnalysisBuffer:
                 
         except Exception as e:
             print(f"Analysis error for image {image_index}: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'animals': 'Fehler bei Analyse',
                 'location': 'Unbekannt',
@@ -276,7 +311,12 @@ class ImageAnalyzer:
         # Images folder label + entry + icon button
         ttk.Label(folder_frame, text="Bilder-Ordner:").pack(side=tk.LEFT)
         self.images_folder_var = tk.StringVar(value=self.images_folder or "")
-        self.images_folder_entry = ttk.Entry(folder_frame, textvariable=self.images_folder_var, state='readonly')
+        # Use tk.Entry with explicit colors for bundled executable compatibility
+        self.images_folder_entry = tk.Entry(folder_frame, textvariable=self.images_folder_var, 
+                                          state='readonly', 
+                                          bg='white', fg='black', 
+                                          font=('Arial', 10),
+                                          relief='sunken', borderwidth=2)
         self.images_folder_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
 
         # Create a small folder icon for the browse buttons
@@ -295,7 +335,12 @@ class ImageAnalyzer:
         # Output Excel label + entry + icon button
         ttk.Label(folder_frame, text="  Ausgabe Excel:").pack(side=tk.LEFT, padx=(20, 0))
         self.output_excel_var = tk.StringVar(value=self.output_excel or "")
-        self.output_excel_entry = ttk.Entry(folder_frame, textvariable=self.output_excel_var, state='readonly')
+        # Use tk.Entry with explicit colors for bundled executable compatibility
+        self.output_excel_entry = tk.Entry(folder_frame, textvariable=self.output_excel_var, 
+                                         state='readonly', 
+                                         bg='white', fg='black', 
+                                         font=('Arial', 10),
+                                         relief='sunken', borderwidth=2)
         self.output_excel_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 10))
 
         if self.folder_icon:
@@ -736,12 +781,28 @@ class ImageAnalyzer:
     def analyze_current_image(self):
         """Analyze current image using smart buffer system or dummy data."""
         print(f"DEBUG: Analyze button pressed - Dummy mode: {self.dummy_mode_var.get()}")
+        print(f"DEBUG: GITHUB_TOKEN available: {'Yes' if GITHUB_TOKEN else 'No'}")
+        print(f"DEBUG: Environment GITHUB_MODELS_TOKEN: {'Set' if os.environ.get('GITHUB_MODELS_TOKEN') else 'Not set'}")
         
         if self.dummy_mode_var.get():
             # Use dummy data - no real AI analysis
-            print("DEBUG: Using dummy data, no real analysis")
+            print("DEBUG: Using dummy data because dummy mode is enabled")
             self.use_dummy_data()
-            self.analysis_status_label.config(text="✓ Testdaten eingefügt", foreground="green")
+            self.analysis_status_label.config(text="✓ Testdaten eingefügt (Testmodus aktiv)", foreground="green")
+            return
+            
+        # Check if token is available for real analysis
+        if not GITHUB_TOKEN and not os.environ.get('GITHUB_MODELS_TOKEN'):
+            print("DEBUG: No GitHub token found - falling back to dummy data")
+            self.use_dummy_data()
+            self.analysis_status_label.config(text="✓ Testdaten eingefügt (kein Token verfügbar)", foreground="orange")
+            messagebox.showwarning("Kein API-Token", 
+                                 "GitHub Models Token nicht gefunden.\n"
+                                 "Verwende Testdaten.\n\n"
+                                 "Zum Aktivieren der KI-Analyse:\n"
+                                 "1. .env Datei im Programmordner erstellen\n"
+                                 "2. GITHUB_MODELS_TOKEN=ihr_token hinzufügen", 
+                                 parent=self.root)
             return
             
         # Real AI analysis mode
@@ -848,15 +909,18 @@ class ImageAnalyzer:
         species_vars = [self.species1_var, self.species2_var, self.species3_var, self.species4_var]  # New
         count_vars = [self.count1_var, self.count2_var, self.count3_var, self.count4_var]          # New
 
+        print(f"DEBUG: Filling {num_species} species with dummy data")
         for i in range(num_species):
             species, counts = random.choice(species_options[:-1])
             species_vars[i].set(species)
             count_vars[i].set(random.choice(counts))
+            print(f"DEBUG: Set species {i+1}: {species} (count: {count_vars[i].get()})")
 
         # Clear unused species
         for i in range(num_species, 4):
             species_vars[i].set("")
             count_vars[i].set("")
+            print(f"DEBUG: Cleared species {i+1}")
 
         self.aktivitat_var.set(random.choice(activities))
         self.interaktion_var.set(random.choice(interactions))
@@ -864,6 +928,9 @@ class ImageAnalyzer:
         self.sonstiges_text.delete(1.0, tk.END)
         self.sonstiges_text.insert(1.0, random.choice(sonstiges_options))
 
+        print("DEBUG: Dummy data filling complete - triggering summary update")
+        # Manually trigger the summary update to ensure it reflects the changes
+        self.update_animals_summary()
         print("Mit Testdaten gefüllt")
 
     def analyze_with_ai(self):
@@ -1319,7 +1386,12 @@ class ImageAnalyzer:
             self.analysis_status_label.config(text="Testmodus - bereit für Dummy-Daten", foreground="blue")
         else:
             print("❌ Testmodus deaktiviert - KI-Analyse verfügbar")
-            self.analysis_status_label.config(text="Bereit für KI-Analyse", foreground="black")
+            # Check if token is available
+            token_available = bool(GITHUB_TOKEN or os.environ.get('GITHUB_MODELS_TOKEN'))
+            if token_available:
+                self.analysis_status_label.config(text="Bereit für KI-Analyse", foreground="black")
+            else:
+                self.analysis_status_label.config(text="Kein API-Token - nur Testdaten verfügbar", foreground="orange")
         
         # Update buffer status display
         if self.analysis_buffer:

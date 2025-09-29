@@ -85,11 +85,18 @@ copy "dist\KamerafallenTools.exe" "%PKG%\" >nul
 if exist ".env.example" copy ".env.example" "%PKG%\" >nul
 if exist "README.md" copy "README.md" "%PKG%\" >nul
 
-echo @echo off > "%PKG%\start.bat"
-echo KamerafallenTools.exe >> "%PKG%\start.bat"  
-echo pause >> "%PKG%\start.bat"
-
-echo ✅ Package ready: %PKG%\
+    echo @echo off > "%PKG%\start.bat"
+    echo REM Kamerafallen Tools Startup Script >> "%PKG%\start.bat"
+    echo echo 🚀 Starting Kamerafallen Tools... >> "%PKG%\start.bat"
+    echo cd /d "%%~dp0" >> "%PKG%\start.bat"
+    echo. >> "%PKG%\start.bat"
+    echo REM Create .env from example if it doesn't exist >> "%PKG%\start.bat"
+    echo if not exist ".env" if exist ".env.example" copy ".env.example" ".env" >> "%PKG%\start.bat"
+    echo if not exist ".env" echo ⚠️  For AI features: copy .env.example to .env and add your GitHub token >> "%PKG%\start.bat"
+    echo. >> "%PKG%\start.bat"
+    echo KamerafallenTools.exe >> "%PKG%\start.bat"  
+    echo echo Application closed. >> "%PKG%\start.bat"
+    echo pause >> "%PKG%\start.bat"echo ✅ Package ready: %PKG%\
 dir "%PKG%"
 
 echo.
