@@ -1496,6 +1496,36 @@ class ImageAnalyzer:
         except Exception as e:
             messagebox.showerror("Fehler", f"Fehler beim Speichern in Excel: {e}", parent=self.root)
 
+    def _collect_species_entries(self):
+        """Return a list of species/count pairs currently entered in the form."""
+        entries = []
+        species_vars = [self.species1_var, self.species2_var, self.species3_var, self.species4_var]
+        count_vars = [self.count1_var, self.count2_var, self.count3_var, self.count4_var]
+
+        for species_var, count_var in zip(species_vars, count_vars):
+            species = species_var.get().strip()
+            count = count_var.get().strip()
+            if species:
+                entries.append({'species': species, 'count': count})
+
+        return entries
+
+    def _split_bartgeier_entries(self, entries, generl_checked, luisa_checked):
+        """Split species entries into non-Bartgeier and track Bartgeier presence."""
+        filtered = []
+        bartgeier_present = False
+
+        for entry in entries:
+            species_lower = entry['species'].lower()
+            if 'bartgeier' in species_lower:
+                bartgeier_present = True
+            else:
+                filtered.append(entry)
+
+        unspecified_bartgeier = bartgeier_present and not (generl_checked or luisa_checked)
+
+        return filtered, bartgeier_present, unspecified_bartgeier
+
     def _process_date_for_excel(self, date_str):
         """Convert date string to Excel-compatible format."""
         if not date_str:
