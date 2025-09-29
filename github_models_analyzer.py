@@ -20,47 +20,151 @@ import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ImageDraw
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import time
+import builtins
+from datetime import datetime
+from pathlib import Path
 import github_models_api as gm_api
 import github_models_io as gm_io
 
-# Try to load .env file if available
+
+# ---------------------------------------------------------------------------
+# Debug logging setup
+# ---------------------------------------------------------------------------
+USER_LOG_DIR = Path(os.path.expanduser("~")) / ".kamerafallen-tools"
 try:
-    from dotenv import load_dotenv
-    # In bundled executable, look for .env in the executable directory
-    if hasattr(sys, '_MEIPASS'):
-        # Running from PyInstaller bundle
-        bundle_dir = os.path.dirname(sys.executable)
-        env_file = os.path.join(bundle_dir, '.env')
-        if os.path.exists(env_file):
-            print(f"DEBUG: Loading .env from bundle directory: {env_file}")
-            load_dotenv(env_file)
-        else:
-            print(f"DEBUG: .env not found in bundle directory: {env_file}")
-            # Try in the temp directory where PyInstaller extracts files
-            temp_env = os.path.join(sys._MEIPASS, '.env')
-            if os.path.exists(temp_env):
-                print(f"DEBUG: Loading .env from temp directory: {temp_env}")
-                load_dotenv(temp_env)
+    USER_LOG_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    # Fall back to current working directory if home is not writable
+    USER_LOG_DIR = Path.cwd()
+
+DEBUG_LOG_PATH = USER_LOG_DIR / "analyzer_debug.log"
+_ORIGINAL_PRINT = builtins.print
+
+
+def debug_print(*args, **kwargs):
+    """Print wrapper that mirrors output to a persistent debug log file."""
+    message = " ".join(str(arg) for arg in args)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        _ORIGINAL_PRINT(*args, **kwargs)
+    except Exception:
+        pass
+
+    try:
+        with DEBUG_LOG_PATH.open("a", encoding="utf-8") as log_file:
+            log_file.write(f"[{timestamp}] {message}\n")
+    except Exception:
+        # As a last resort, ignore logging errors to avoid breaking runtime
+        pass
+
+
+print = debug_print  # Route all module prints through our logger
+
+print("====================================================================")
+print("DEBUG: Analyzer session started")
+print(f"DEBUG: Working directory: {Path.cwd()}")
+print(f"DEBUG: Debug log path: {DEBUG_LOG_PATH}")
+
+
+def _candidate_env_paths():
+    """Return potential .env locations in priority order."""
+    candidates = []
+    potential_dirs = []
+
+    # PyInstaller runtime directories
+    if hasattr(sys, "_MEIPASS"):
+        try:
+            potential_dirs.append(Path(sys._MEIPASS))
+        except Exception as exc:
+            print(f"DEBUG: Could not resolve sys._MEIPASS: {exc}")
+        try:
+            potential_dirs.append(Path(sys.executable).resolve().parent)
+        except Exception as exc:
+            print(f"DEBUG: Could not resolve sys.executable parent: {exc}")
+
+    # Standard locations
+    potential_dirs.extend([Path.cwd(), Path(__file__).resolve().parent])
+
+    seen = set()
+    for directory in potential_dirs:
+        if not directory:
+            continue
+        directory = directory.resolve()
+        if directory in seen:
+            continue
+        seen.add(directory)
+        for name in (".env", ".env.local"):
+            candidates.append(directory / name)
+
+    return candidates
+
+
+ENV_FILES_LOADED = []
+
+try:
+    from dotenv import load_dotenv  # type: ignore[import]
+
+    print("DEBUG: Checking potential .env locations:")
+    for candidate in _candidate_env_paths():
+        print(f"  -> {candidate}")
+
+    for env_path in _candidate_env_paths():
+        try:
+            resolved = env_path.resolve()
+        except Exception as exc:
+            print(f"DEBUG: Could not resolve env path {env_path}: {exc}")
+            continue
+
+        if not resolved.exists():
+            print(f"DEBUG: Env candidate not found: {resolved}")
+            continue
+
+        try:
+            loaded = load_dotenv(dotenv_path=resolved, override=True)
+            if loaded:
+                ENV_FILES_LOADED.append(str(resolved))
+                print(f"DEBUG: Loaded environment from {resolved}")
             else:
-                print("DEBUG: .env not found in temp directory either")
+                print(f"DEBUG: Env file present but variables already set: {resolved}")
+        except Exception as exc:
+            print(f"DEBUG: Failed to load env file {resolved}: {exc}")
+
+    if not ENV_FILES_LOADED:
+        print("DEBUG: No .env files loaded; relying on system environment")
     else:
-        # Running from source
-        load_dotenv()
-        print("DEBUG: Loaded .env from source directory")
+        print(f"DEBUG: Loaded .env files: {ENV_FILES_LOADED}")
 except ImportError:
-    print("DEBUG: dotenv not available, continuing without it")
+    load_dotenv = None
+    print("DEBUG: python-dotenv not available; relying on system environment")
+
+
+def get_github_token():
+    """Return the GitHub Models token from environment variables."""
+    for key in ("GITHUB_MODELS_TOKEN", "GITHUB_TOKEN"):
+        value = os.environ.get(key)
+        if value:
+            return value.strip()
+    return ""
+
+
+def refresh_token_cache():
+    """Refresh the cached token for compatibility with legacy code paths."""
+    global GITHUB_TOKEN
+    GITHUB_TOKEN = get_github_token()
+    return GITHUB_TOKEN
+
 
 # Configuration (can be overridden by env)
 IMAGES_FOLDER = os.environ.get("ANALYZER_IMAGES_FOLDER", "")
 OUTPUT_EXCEL = os.environ.get("ANALYZER_OUTPUT_EXCEL", "")
-GITHUB_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN", "")
+GITHUB_TOKEN = get_github_token()
 START_FROM_IMAGE = 1
 
 # Debug token loading
-print(f"DEBUG: GITHUB_TOKEN loaded: {'Yes' if GITHUB_TOKEN else 'No'} ({'***' if GITHUB_TOKEN else 'empty'})")
+print(f"DEBUG: GitHub token detected: {'Yes' if GITHUB_TOKEN else 'No'} (length={len(GITHUB_TOKEN) if GITHUB_TOKEN else 0})")
 print(f"DEBUG: IMAGES_FOLDER: {IMAGES_FOLDER}")
 print(f"DEBUG: OUTPUT_EXCEL: {OUTPUT_EXCEL}")
 
@@ -150,10 +254,10 @@ class AnalysisBuffer:
             
             print(f"DEBUG: Analyzing image {image_index}: {image_path}")
             
-            # Check if token is available (check both global and environment)
-            token = GITHUB_TOKEN or os.environ.get('GITHUB_MODELS_TOKEN', '')
+            # Check if token is available (env-aware)
+            token = get_github_token()
             if not token:
-                print(f"DEBUG: No token available for analysis")
+                print("DEBUG: No token available for analysis")
                 return {
                     'animals': 'Token fehlt',
                     'location': 'Unbekannt',
@@ -162,7 +266,7 @@ class AnalysisBuffer:
                     'error': 'GITHUB_MODELS_TOKEN nicht gesetzt'
                 }
             
-            print(f"DEBUG: Using token for analysis (length: {len(token)})")
+            print(f"DEBUG: Using token for analysis (length={len(token)})")
             
             # Use existing AI analysis function
             animals, location, time_str, date_str = gm_api.analyze_with_github_models(
@@ -499,10 +603,28 @@ class ImageAnalyzer:
         self.sonstiges_text = tk.Text(right_frame, height=2, width=40)
         self.sonstiges_text.pack(anchor=tk.W, fill=tk.X)
 
-        # Testing mode
-        self.dummy_mode_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(right_frame, text="Testdaten verwenden (Testmodus)", 
-                       variable=self.dummy_mode_var, command=self.on_dummy_mode_toggle).pack(anchor=tk.W, pady=(10, 0))
+        # Testing mode - default to real analysis when a token is present
+        initial_dummy_mode = not bool(get_github_token())
+        self.dummy_mode_var = tk.BooleanVar(value=initial_dummy_mode)
+        ttk.Checkbutton(
+            right_frame,
+            text="Testdaten verwenden (Testmodus)",
+            variable=self.dummy_mode_var,
+            command=self.on_dummy_mode_toggle
+        ).pack(anchor=tk.W, pady=(10, 0))
+
+        token_detected = bool(get_github_token())
+        token_text = "GitHub Token erkannt: Ja" if token_detected else "GitHub Token erkannt: Nein"
+        token_color = "green" if token_detected else "orange"
+        self.token_status_label = ttk.Label(right_frame, text=token_text, foreground=token_color, font=('Arial', 8, 'italic'))
+        self.token_status_label.pack(anchor=tk.W, pady=(2, 0))
+
+        if ENV_FILES_LOADED:
+            env_text = "Geladene .env-Dateien:\n" + "\n".join(f"  - {path}" for path in ENV_FILES_LOADED)
+        else:
+            env_text = "Keine .env-Datei gefunden – nutze nur System-Variablen"
+        self.env_status_label = ttk.Label(right_frame, text=env_text, foreground='gray', font=('Arial', 8))
+        self.env_status_label.pack(anchor=tk.W, pady=(0, 6))
 
         # Buttons - reorganized workflow
         button_frame = ttk.Frame(right_frame)
@@ -532,6 +654,8 @@ class ImageAnalyzer:
                                            font=('Arial', 8), foreground='gray')
         self.buffer_status_label.pack(pady=(2, 0))
 
+        ttk.Button(status_frame, text="Debug-Log öffnen", command=self.open_debug_log).pack(pady=(6, 0))
+
         # Progress and status
         self.progress_var = tk.StringVar()
         ttk.Label(right_frame, textvariable=self.progress_var).pack(pady=10)
@@ -555,6 +679,30 @@ class ImageAnalyzer:
         self.count4_var.trace('w', self.update_filename_preview)
         self.generl_var.trace('w', self.update_filename_preview)
         self.luisa_var.trace('w', self.update_filename_preview)
+
+        # Ensure status labels reflect the initial dummy mode state
+        self.on_dummy_mode_toggle()
+
+    def open_debug_log(self):
+        """Open the analyzer debug log in the system viewer."""
+        try:
+            if not DEBUG_LOG_PATH.exists():
+                DEBUG_LOG_PATH.write_text(
+                    "Noch keine Debug-Ausgaben vorhanden. Der Analyzer schreibt bei Aktionen automatisch hier hinein.\n",
+                    encoding="utf-8"
+                )
+
+            log_path = DEBUG_LOG_PATH.resolve()
+            print(f"DEBUG: Opening debug log at {log_path}")
+
+            if sys.platform.startswith("win"):
+                os.startfile(str(log_path))  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.call(["open", str(log_path)])
+            else:
+                subprocess.call(["xdg-open", str(log_path)])
+        except Exception as exc:
+            messagebox.showerror("Fehler", f"Debug-Log konnte nicht geöffnet werden:\n{exc}", parent=self.root)
 
     def choose_images_folder(self):
         # Ensure our window is on top so the native dialog appears in front
@@ -780,9 +928,11 @@ class ImageAnalyzer:
 
     def analyze_current_image(self):
         """Analyze current image using smart buffer system or dummy data."""
+        token = refresh_token_cache()
         print(f"DEBUG: Analyze button pressed - Dummy mode: {self.dummy_mode_var.get()}")
-        print(f"DEBUG: GITHUB_TOKEN available: {'Yes' if GITHUB_TOKEN else 'No'}")
-        print(f"DEBUG: Environment GITHUB_MODELS_TOKEN: {'Set' if os.environ.get('GITHUB_MODELS_TOKEN') else 'Not set'}")
+        print(f"DEBUG: GitHub token available: {'Yes' if token else 'No'} (length={len(token) if token else 0})")
+        env_token_state = 'Set' if os.environ.get('GITHUB_MODELS_TOKEN') else 'Not set'
+        print(f"DEBUG: Environment GITHUB_MODELS_TOKEN: {env_token_state}")
         
         if self.dummy_mode_var.get():
             # Use dummy data - no real AI analysis
@@ -792,16 +942,19 @@ class ImageAnalyzer:
             return
             
         # Check if token is available for real analysis
-        if not GITHUB_TOKEN and not os.environ.get('GITHUB_MODELS_TOKEN'):
+        if not token:
             print("DEBUG: No GitHub token found - falling back to dummy data")
             self.use_dummy_data()
             self.analysis_status_label.config(text="✓ Testdaten eingefügt (kein Token verfügbar)", foreground="orange")
+            if hasattr(self, 'token_status_label'):
+                self.token_status_label.config(text="GitHub Token erkannt: Nein", foreground="orange")
             messagebox.showwarning("Kein API-Token", 
                                  "GitHub Models Token nicht gefunden.\n"
                                  "Verwende Testdaten.\n\n"
                                  "Zum Aktivieren der KI-Analyse:\n"
                                  "1. .env Datei im Programmordner erstellen\n"
-                                 "2. GITHUB_MODELS_TOKEN=ihr_token hinzufügen", 
+                                 "2. GITHUB_MODELS_TOKEN=ihr_token hinzufügen\n\n"
+                                 f"Debug-Log: {DEBUG_LOG_PATH}", 
                                  parent=self.root)
             return
             
@@ -938,7 +1091,10 @@ class ImageAnalyzer:
         images_folder = self.images_folder or IMAGES_FOLDER
         image_path = os.path.join(images_folder, image_file)
         try:
-            animals, location, time_str, date_str = gm_api.analyze_with_github_models(image_path, GITHUB_TOKEN, ANIMAL_SPECIES)
+            token = refresh_token_cache()
+            animals, location, time_str, date_str = gm_api.analyze_with_github_models(
+                image_path, token, ANIMAL_SPECIES
+            )
 
             # Set checkboxes based on animals string
             if "Generl und Luisa" in animals or "Luisa und Generl" in animals:
@@ -1119,7 +1275,6 @@ class ImageAnalyzer:
                 nr = int(match.group(1))
             else:
                 # Use timestamp as fallback
-                import time
                 nr = int(time.time()) % 10000
         
         # Convert date from DD.MM.YYYY to MM.DD.YY format
@@ -1314,7 +1469,7 @@ class ImageAnalyzer:
                     # Convert to Excel date number (days since 1900-01-01)
                     excel_date = (dt - datetime(1900, 1, 1)).days + 2
                     return excel_date
-        except:
+        except Exception:
             pass
         
         # If conversion fails, return as string
@@ -1336,7 +1491,7 @@ class ImageAnalyzer:
                     # Convert to fraction of day
                     time_fraction = (hours + minutes/60 + seconds/3600) / 24
                     return time_fraction
-        except:
+        except Exception:
             pass
         
         # If conversion fails, return as string
@@ -1381,18 +1536,26 @@ class ImageAnalyzer:
 
     def on_dummy_mode_toggle(self):
         """Handle dummy mode checkbox toggle."""
+        token_value = refresh_token_cache()
+
         if self.dummy_mode_var.get():
             print("✅ Testmodus aktiviert - keine KI-Analyse")
             self.analysis_status_label.config(text="Testmodus - bereit für Dummy-Daten", foreground="blue")
         else:
             print("❌ Testmodus deaktiviert - KI-Analyse verfügbar")
             # Check if token is available
-            token_available = bool(GITHUB_TOKEN or os.environ.get('GITHUB_MODELS_TOKEN'))
+            token_available = bool(token_value)
             if token_available:
                 self.analysis_status_label.config(text="Bereit für KI-Analyse", foreground="black")
             else:
                 self.analysis_status_label.config(text="Kein API-Token - nur Testdaten verfügbar", foreground="orange")
         
+        if hasattr(self, 'token_status_label'):
+            if token_value:
+                self.token_status_label.config(text="GitHub Token erkannt: Ja", foreground="green")
+            else:
+                self.token_status_label.config(text="GitHub Token erkannt: Nein", foreground="orange")
+
         # Update buffer status display
         if self.analysis_buffer:
             self.analysis_buffer._update_buffer_status()
@@ -1450,11 +1613,13 @@ if __name__ == "__main__":
     parser.add_argument('--output-excel', help='Path to output Excel file')
     args = parser.parse_args()
 
-    if not GITHUB_TOKEN:
+    refresh_token_cache()
+
+    if not get_github_token():
         print("Warnung: GITHUB_MODELS_TOKEN Umgebungsvariable nicht gesetzt. Setzen Sie diese, um GitHub Models API-Aufrufe zu aktivieren.")
 
     if args.no_gui:
-        print("Test ohne GUI: Token vorhanden:", bool(GITHUB_TOKEN))
+        print("Test ohne GUI: Token vorhanden:", bool(get_github_token()))
         sys.exit(0)
 
     # Use command line arguments if provided, otherwise fall back to environment

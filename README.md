@@ -176,6 +176,18 @@ Notes:
    checkbox to populate realistic dummy data for testing the UI and Excel writes.
 - The renaming convention and Excel structure are described in the code comments.
 
+### Debugging the analyzer
+
+- Every analyzer session now writes a persistent debug log to
+   `~/.kamerafallen-tools/analyzer_debug.log` (Windows example:
+   `C:\Users\YOU\.kamerafallen-tools\analyzer_debug.log`).
+- Inside the analyzer window you can click **Debug-Log öffnen** to open the file
+   and inspect whether a GitHub token was detected, which `.env` files were loaded,
+   and why a run may have fallen back to dummy data.
+- The status panel shows live information about the token and the exact `.env`
+   files that were picked up. If no token is available, the analyzer automatically
+   enables test mode and explains how to configure a real token.
+
 ## License
 
 This project is open source. Feel free to modify and distribute as needed.
