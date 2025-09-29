@@ -324,14 +324,19 @@ class AnalysisBuffer:
         try:
             # Parse animals to species and populate fields
             self.analyzer.parse_animals_to_species(result['animals'])
-            
+
             # Update location and other fields
             self.analyzer.location_var.set(result['location'])
             if result['date']:
                 self.analyzer.date_var.set(result['date'])
             if result['time']:
                 self.analyzer.time_var.set(result['time'])
-            
+            print(
+                "DEBUG: UI updated for current image "
+                f"{self.analyzer.current_image_index} -> location={result['location']}, "
+                f"date={result['date']}, time={result['time']}, animals={result['animals']}"
+            )
+
             # Update status
             if hasattr(self.analyzer, 'analysis_status_label'):
                 self.analyzer.analysis_status_label.config(text="✓ Analyse abgeschlossen", foreground="green")
@@ -414,7 +419,7 @@ class ImageAnalyzer:
 
         # Images folder label + entry + icon button
         ttk.Label(folder_frame, text="Bilder-Ordner:").pack(side=tk.LEFT)
-        self.images_folder_var = tk.StringVar(value=self.images_folder or "")
+        self.images_folder_var = tk.StringVar(master=self.root, value=self.images_folder or "")
         # Use tk.Entry with explicit colors for bundled executable compatibility
         self.images_folder_entry = tk.Entry(folder_frame, textvariable=self.images_folder_var, 
                                           state='readonly', 
@@ -438,7 +443,7 @@ class ImageAnalyzer:
 
         # Output Excel label + entry + icon button
         ttk.Label(folder_frame, text="  Ausgabe Excel:").pack(side=tk.LEFT, padx=(20, 0))
-        self.output_excel_var = tk.StringVar(value=self.output_excel or "")
+        self.output_excel_var = tk.StringVar(master=self.root, value=self.output_excel or "")
         # Use tk.Entry with explicit colors for bundled executable compatibility
         self.output_excel_entry = tk.Entry(folder_frame, textvariable=self.output_excel_var, 
                                          state='readonly', 
@@ -511,23 +516,23 @@ class ImageAnalyzer:
         ttk.Label(right_frame, text="Bildanalyse", font=("Arial", 14)).pack(pady=(0, 10))
 
         ttk.Label(right_frame, text="Standort:").pack(anchor=tk.W)
-        self.location_var = tk.StringVar()
+        self.location_var = tk.StringVar(master=self.root)
         ttk.Entry(right_frame, textvariable=self.location_var, width=30).pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W)
-        self.time_var = tk.StringVar()
+        self.time_var = tk.StringVar(master=self.root)
         ttk.Entry(right_frame, textvariable=self.time_var, width=30).pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W)
-        self.date_var = tk.StringVar()
+        self.date_var = tk.StringVar(master=self.root)
         ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
 
         # Generl / Luisa
         special_frame = ttk.Frame(right_frame)
         special_frame.pack(anchor=tk.W, pady=(10, 5))
         ttk.Label(special_frame, text="Spezielle Markierungen:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
-        self.generl_var = tk.BooleanVar()
-        self.luisa_var = tk.BooleanVar()
+        self.generl_var = tk.BooleanVar(master=self.root)
+        self.luisa_var = tk.BooleanVar(master=self.root)
         checkboxes_frame = ttk.Frame(special_frame)
         checkboxes_frame.pack(anchor=tk.W, pady=5)
         ttk.Checkbutton(checkboxes_frame, text="Generl", variable=self.generl_var, command=self.on_generl_toggle).pack(side=tk.LEFT, padx=(0, 10))
@@ -540,40 +545,40 @@ class ImageAnalyzer:
         species_frame1 = ttk.Frame(right_frame)
         species_frame1.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame1, text="Art 1:").pack(side=tk.LEFT)
-        self.species1_var = tk.StringVar()
+        self.species1_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame1, textvariable=self.species1_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame1, text="Anzahl:").pack(side=tk.LEFT)
-        self.count1_var = tk.StringVar()
+        self.count1_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame1, textvariable=self.count1_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 2
         species_frame2 = ttk.Frame(right_frame)
         species_frame2.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame2, text="Art 2:").pack(side=tk.LEFT)
-        self.species2_var = tk.StringVar()
+        self.species2_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame2, textvariable=self.species2_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame2, text="Anzahl:").pack(side=tk.LEFT)
-        self.count2_var = tk.StringVar()
+        self.count2_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame2, textvariable=self.count2_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 3 (new)
         species_frame3 = ttk.Frame(right_frame)
         species_frame3.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame3, text="Art 3:").pack(side=tk.LEFT)
-        self.species3_var = tk.StringVar()
+        self.species3_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame3, textvariable=self.species3_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame3, text="Anzahl:").pack(side=tk.LEFT)
-        self.count3_var = tk.StringVar()
+        self.count3_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame3, textvariable=self.count3_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 4 (new)
         species_frame4 = ttk.Frame(right_frame)
         species_frame4.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame4, text="Art 4:").pack(side=tk.LEFT)
-        self.species4_var = tk.StringVar()
+        self.species4_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame4, textvariable=self.species4_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame4, text="Anzahl:").pack(side=tk.LEFT)
-        self.count4_var = tk.StringVar()
+        self.count4_var = tk.StringVar(master=self.root)
         ttk.Entry(species_frame4, textvariable=self.count4_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
 
         ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10, 0))
@@ -592,11 +597,11 @@ class ImageAnalyzer:
 
         # extras
         ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10, 0))
-        self.aktivitat_var = tk.StringVar()
+        self.aktivitat_var = tk.StringVar(master=self.root)
         ttk.Entry(right_frame, textvariable=self.aktivitat_var, width=30).pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Interaktion:").pack(anchor=tk.W)
-        self.interaktion_var = tk.StringVar()
+        self.interaktion_var = tk.StringVar(master=self.root)
         ttk.Entry(right_frame, textvariable=self.interaktion_var, width=30).pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Sonstiges:").pack(anchor=tk.W)
@@ -605,7 +610,7 @@ class ImageAnalyzer:
 
         # Testing mode - default to real analysis when a token is present
         initial_dummy_mode = not bool(get_github_token())
-        self.dummy_mode_var = tk.BooleanVar(value=initial_dummy_mode)
+        self.dummy_mode_var = tk.BooleanVar(master=self.root, value=initial_dummy_mode)
         ttk.Checkbutton(
             right_frame,
             text="Testdaten verwenden (Testmodus)",
@@ -657,13 +662,17 @@ class ImageAnalyzer:
         ttk.Button(status_frame, text="Debug-Log öffnen", command=self.open_debug_log).pack(pady=(6, 0))
 
         # Progress and status
-        self.progress_var = tk.StringVar()
+        self.progress_var = tk.StringVar(master=self.root)
         ttk.Label(right_frame, textvariable=self.progress_var).pack(pady=10)
         
         # Add filename preview for rename functionality
-        self.filename_preview_var = tk.StringVar()
-        self.filename_preview_label = ttk.Label(right_frame, textvariable=self.filename_preview_var, 
-                                                font=('Arial', 8), foreground='blue')
+        self.filename_preview_var = tk.StringVar(master=self.root)
+        self.filename_preview_label = ttk.Label(
+            right_frame,
+            textvariable=self.filename_preview_var,
+            font=('Arial', 8),
+            foreground='blue'
+        )
         self.filename_preview_label.pack(pady=(0, 5))
         
         # Bind form changes to update filename preview
@@ -907,6 +916,7 @@ class ImageAnalyzer:
             self.filename_preview_var.set("")
 
     def clear_fields(self):
+        print("DEBUG: clear_fields invoked")
         self.location_var.set("")
         self.time_var.set("")
         self.date_var.set("")
