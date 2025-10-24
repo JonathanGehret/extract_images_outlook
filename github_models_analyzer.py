@@ -185,7 +185,7 @@ class AnalysisBuffer:
         self.analyzing = set()  # Currently being analyzed
         self.failed = set()  # Failed analyses
         self.executor = ThreadPoolExecutor(max_workers=5)
-        self.buffer_size = 3  # Keep 3 images ahead analyzed
+        self.buffer_size = 5  # Keep 5 images ahead analyzed (changed from 3)
         self.batch_size = 5   # Initial batch size when explicitly triggered
         self.retry_attempts = {}
         self.max_retries = 3
@@ -195,6 +195,11 @@ class AnalysisBuffer:
         self.failed_timestamps = {}
         self.failure_reasons = {}
         self.pending_long_retry = set()
+        # Rate limit tracking
+        self.rate_limited = False  # Are we currently rate limited?
+        self.rate_limit_type = None  # 'minute' or 'day'
+        self.rate_limit_wait_until = None  # Timestamp when we can retry
+        self.rate_limit_wait_seconds = 0  # How many seconds to wait
         
     def get_analysis(self, image_index, force_analysis=False):
         """Get analysis result for image, trigger batch if not available.
@@ -244,6 +249,10 @@ class AnalysisBuffer:
     
     def _ensure_buffer_ahead(self, current_index):
         """Ensure we have buffer_size images analyzed ahead."""
+        # Don't queue new analyses if rate limited
+        if self.rate_limited:
+            return
+        
         if not self.analyzer.image_files:
             return
 
@@ -251,14 +260,28 @@ class AnalysisBuffer:
         limit_index = min(current_visible + 1 + self.buffer_size, len(self.analyzer.image_files))
 
         start_index = max(current_index, current_visible + 1)
+        
+        # Count how many we're already analyzing or have buffered
+        queued_count = len([i for i in range(start_index, limit_index) 
+                           if i in self.analyzing or i in self.buffer])
+        
+        # Limit total queue to buffer_size (5)
         for i in range(start_index, limit_index):
+            if queued_count >= self.buffer_size:
+                break
             if (i not in self.buffer and 
                 i not in self.analyzing and 
                 i not in self.failed):
                 self._start_single_analysis(i)
+                queued_count += 1
     
     def _start_batch_analysis(self, start_index):
         """Start analyzing a batch of up to 5 images."""
+        # Don't start batch if rate limited
+        if self.rate_limited:
+            print("DEBUG: Batch analysis blocked due to rate limit")
+            return
+        
         if not self.analyzer.image_files:
             return
 
@@ -269,12 +292,20 @@ class AnalysisBuffer:
             return
 
         batch_size = batch_limit
+        started = 0
         for i in range(start_index, start_index + batch_size):
+            if started >= self.buffer_size:  # Enforce max 5 concurrent
+                break
             if i not in self.buffer and i not in self.analyzing:
                 self._start_single_analysis(i)
+                started += 1
     
     def _start_single_analysis(self, image_index):
         """Start analyzing a single image asynchronously."""
+        # Don't start if rate limited
+        if self.rate_limited:
+            return
+        
         if image_index >= len(self.analyzer.image_files):
             return
             
@@ -433,6 +464,54 @@ class AnalysisBuffer:
         return int(min(delay, self.max_retry_delay_ms))
 
     def _record_failure(self, image_index, error_message):
+        # Check if this is a rate limit error before recording as failure
+        rate_limit_info = self._parse_rate_limit_error(error_message)
+        if rate_limit_info:
+            wait_seconds = rate_limit_info['wait_seconds']
+            limit_type = rate_limit_info['limit_type']
+            
+            # Set rate limit state
+            self.rate_limited = True
+            self.rate_limit_type = limit_type
+            self.rate_limit_wait_seconds = wait_seconds
+            self.rate_limit_wait_until = time.time() + wait_seconds
+            
+            # Format German message
+            if limit_type == 'minute':
+                friendly = f"⏱️ API-Limit: Bitte {wait_seconds}s warten (1 Anfrage pro Minute)"
+            elif limit_type == 'day':
+                hours = wait_seconds // 3600
+                friendly = f"🚫 Tageslimit erreicht: Bitte {hours}h warten (50 Anfragen pro Tag)"
+            else:
+                friendly = f"⏱️ API-Limit: Bitte {wait_seconds}s warten"
+            
+            # Don't add to failed set - we'll retry automatically
+            self.retry_attempts.pop(image_index, None)
+            
+            print(f"Rate limit detected for image {image_index}: {friendly}")
+            
+            # Update UI
+            if image_index == self.analyzer.current_image_index and hasattr(self.analyzer, 'analysis_status_label'):
+                self.analyzer.analysis_status_label.config(text=friendly, foreground="orange")
+            
+            # Stop all buffer analysis
+            self._stop_buffer_analysis()
+            
+            # Schedule auto-resume if it's a short limit (under 5 minutes)
+            if limit_type == 'minute' and wait_seconds < 300:
+                self._schedule_rate_limit_resume(image_index, wait_seconds)
+            else:
+                # For daily limits, inform user
+                if hasattr(self.analyzer, 'analysis_status_label'):
+                    self.analyzer.analysis_status_label.config(
+                        text=f"{friendly} – Automatische Analyse gestoppt", 
+                        foreground="red"
+                    )
+            
+            self._update_buffer_status()
+            return
+        
+        # Regular failure handling (not a rate limit)
         self.failed.add(image_index)
         self.retry_attempts.pop(image_index, None)
         self.failed_timestamps[image_index] = time.time()
@@ -447,8 +526,80 @@ class AnalysisBuffer:
         self._update_buffer_status()
 
         lower = (error_message or '').lower()
-        if any(keyword in lower for keyword in ("placeholder", "limit", "quota", "429", "temporarily")):
+        # Only schedule long retry if NOT a rate limit (we handle those differently now)
+        if not self.rate_limited and any(keyword in lower for keyword in ("placeholder", "temporarily")):
             self._schedule_long_retry(image_index)
+    
+    def _parse_rate_limit_error(self, error_message):
+        """Parse rate limit error and extract wait time.
+        
+        Returns dict with 'wait_seconds' and 'limit_type' ('minute' or 'day') or None if not a rate limit error.
+        """
+        if not error_message:
+            return None
+        
+        import re
+        
+        # Check for "429" or "RateLimitReached" or "Too Many Requests"
+        if not any(keyword in error_message for keyword in ["429", "RateLimitReached", "Too Many Requests", "Rate limit"]):
+            return None
+        
+        # Pattern: "Rate limit of X per Ys exceeded ... Please wait N seconds"
+        # Example: "Rate limit of 1 per 60s exceeded for UserByModelByMinute. Please wait 8 seconds before retrying."
+        wait_match = re.search(r'Please wait (\d+) seconds?', error_message)
+        if not wait_match:
+            # Maybe it's just a 429 without details - default to 60s
+            return {'wait_seconds': 60, 'limit_type': 'minute'}
+        
+        wait_seconds = int(wait_match.group(1))
+        
+        # Determine if it's a per-minute or per-day limit
+        if 'per 60s' in error_message or 'per 1m' in error_message or 'ByMinute' in error_message:
+            limit_type = 'minute'
+        elif 'per 86400s' in error_message or 'per day' in error_message or 'ByDay' in error_message:
+            limit_type = 'day'
+        else:
+            # Default: if wait time > 5 minutes, assume daily limit
+            limit_type = 'day' if wait_seconds > 300 else 'minute'
+        
+        return {'wait_seconds': wait_seconds, 'limit_type': limit_type}
+    
+    def _stop_buffer_analysis(self):
+        """Stop all ongoing buffer analysis when rate limited."""
+        print("DEBUG: Stopping all buffer analysis due to rate limit")
+        # Don't cancel already running threads, but stop queuing new ones
+        # The rate_limited flag will prevent new analyses from starting
+    
+    def _schedule_rate_limit_resume(self, image_index, wait_seconds):
+        """Schedule automatic resume after rate limit expires."""
+        delay_ms = int((wait_seconds + 2) * 1000)  # Add 2 seconds buffer
+        
+        def _resume():
+            print(f"DEBUG: Rate limit expired, resuming analysis from image {image_index}")
+            self.rate_limited = False
+            self.rate_limit_type = None
+            self.rate_limit_wait_until = None
+            self.rate_limit_wait_seconds = 0
+            
+            # Restart analysis for the current image
+            if image_index < len(self.analyzer.image_files):
+                self.retry_attempts[image_index] = 0
+                self._start_single_analysis(image_index)
+            
+            # Update UI
+            if hasattr(self.analyzer, 'analysis_status_label'):
+                self.analyzer.analysis_status_label.config(
+                    text="✓ Rate-Limit abgelaufen – Analyse wird fortgesetzt", 
+                    foreground="green"
+                )
+            
+            self._update_buffer_status()
+        
+        try:
+            self.analyzer.root.after(delay_ms, _resume)
+            print(f"DEBUG: Scheduled auto-resume in {wait_seconds + 2}s after rate limit")
+        except Exception as exc:
+            print(f"DEBUG: Failed to schedule auto-resume: {exc}")
 
     def _format_error_message(self, error_message):
         if not error_message:

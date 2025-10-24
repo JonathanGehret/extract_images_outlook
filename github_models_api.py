@@ -41,11 +41,10 @@ def analyze_with_github_models(image_path: str, token: str, animal_species: list
 
     Returns: (animals, location, time_str, date_str)
     """
+    # Only use models.inference.ai.azure.com - api.github.com/models returns 404
     endpoints_and_models = [
-        ("https://models.inference.ai.azure.com", "gpt-5"),
         ("https://models.inference.ai.azure.com", "gpt-4o"),
-        ("https://api.github.com/models", "gpt-5"),
-        ("https://api.github.com/models", "gpt-4o"),
+        ("https://models.inference.ai.azure.com", "gpt-4o-mini"),
     ]
 
     errors = []
@@ -98,19 +97,13 @@ def _try_api_call(image_path: str, token: str, api_base: str, model_name: str, a
     UHRZEIT: [Uhrzeit in HH:MM:SS]
     DATUM: [Datum in DD.MM.YYYY]"""
 
-    if model_name == "gpt-5":
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
-            "max_completion_tokens": 500
-        }
-    else:
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
-            "max_tokens": 500,
-            "temperature": 0.1
-        }
+    # Payload for GPT-4o models
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
+        "max_tokens": 500,
+        "temperature": 0.1
+    }
 
     try:
         response = requests.post(
