@@ -4,9 +4,24 @@ This module exposes functions that operate on explicit paths/params so they
 can be used from the GUI without carrying state.
 """
 import os
+import re
 import shutil
 from datetime import datetime, timedelta
 import pandas as pd
+
+
+def _natural_sort_key(filename: str):
+    """
+    Generate a sort key for natural (human-friendly) sorting.
+    Converts numeric parts to integers so "fotofallen_2025_1.jpeg" comes before
+    "fotofallen_2025_10.jpeg" instead of alphabetical sorting.
+    
+    Examples:
+        "fotofallen_2025_1.jpeg"   -> ['fotofallen_', 2025, '_', 1, '.jpeg']
+        "fotofallen_2025_100.jpeg" -> ['fotofallen_', 2025, '_', 100, '.jpeg']
+    """
+    parts = re.split(r'(\d+)', filename)
+    return [int(part) if part.isdigit() else part.lower() for part in parts]
 
 
 def get_image_files(images_folder: str):
@@ -16,14 +31,14 @@ def get_image_files(images_folder: str):
         files = [f for f in os.listdir(images_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
     except FileNotFoundError:
         return []
-    return sorted(files)
+    return sorted(files, key=_natural_sort_key)
 
 
 def refresh_image_list(images_folder: str, old_list: list, current_index: int):
     try:
         all_files = os.listdir(images_folder)
         image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png')) and not f.startswith('.') and 'backup' not in f.lower()]
-        image_files.sort()
+        image_files.sort(key=_natural_sort_key)
 
         old_current_file = old_list[current_index] if current_index < len(old_list) else None
         if old_current_file and old_current_file in image_files:

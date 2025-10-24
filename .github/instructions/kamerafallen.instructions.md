@@ -295,4 +295,122 @@ pyinstaller     # Executable building
 
 ---
 
+## 🔧 Build Maintenance & Spec File Updates
+
+### ⚠️ CRITICAL: Check After Every Code Change
+
+**After modifying any Python code, ALWAYS verify if build spec files need updating:**
+
+#### Decision Tree: Does My Change Require Spec File Updates?
+
+**❌ YES - UPDATE REQUIRED** if you:
+- ✓ Added a new pip package (check `requirements.txt`)
+- ✓ Created a new `.py` module file
+- ✓ Added `import` for an external library not in `hiddenimports`
+- ✓ Added new data files (`.txt`, `.json`, `.csv`, icons, etc.)
+- ✓ Changed application icon or resources
+- ✓ Added new file dependencies that must be bundled
+
+**✅ NO - UPDATE NOT NEEDED** if you only:
+- ✓ Changed code logic within existing functions
+- ✓ Added functions/classes to existing modules
+- ✓ Used standard library imports already in `hiddenimports`
+- ✓ Fixed bugs or optimized existing code
+- ✓ Refactored without new dependencies
+
+#### Files to Update When Changes Are Needed
+
+**Both spec files must be kept in sync:**
+1. `KamerafallenTools-Linux.spec` - Linux builds
+2. `KamerafallenTools-Windows.spec` - Windows builds
+
+#### Common Update Scenarios
+
+**Scenario 1: New External Package**
+```python
+# If you add to requirements.txt:
+pip install some-new-package
+
+# Then add to BOTH spec files' hiddenimports:
+hiddenimports=[
+    ...,
+    'some_new_package',  # ← Add this
+]
+```
+
+**Scenario 2: New Python Module File**
+```python
+# If you create: my_new_module.py
+
+# Then add to BOTH spec files' datas:
+datas=[
+    ('my_new_module.py', '.'),  # ← Add this
+    ...
+]
+```
+
+**Scenario 3: New Data File**
+```python
+# If you add: config.json or logo.png
+
+# Then add to BOTH spec files' datas:
+datas=[
+    ('config.json', '.'),  # ← Add this
+    ('logo.png', '.'),     # ← Add this
+    ...
+]
+```
+
+**Scenario 4: Standard Library Import (Usually Safe)**
+```python
+# If you add: import re, import json, import os
+# Check if already in hiddenimports - if yes, NO UPDATE NEEDED
+# Standard library imports are usually already covered
+```
+
+#### Verification Checklist After Code Changes
+
+```bash
+# 1. Review what changed
+git diff
+
+# 2. Check for new imports
+grep -r "^import \|^from " *.py | grep -v "#"
+
+# 3. Check for new files
+git status
+
+# 4. If unsure, test build locally
+# Linux:
+python3 build_final.py
+# Windows:
+build_windows_release.bat
+
+# 5. Test the built executable thoroughly
+```
+
+#### Example: Recent Changes Analysis
+
+**Change Made:** Added natural sorting to `github_models_io.py`
+- Added `import re` → Already in hiddenimports ✅
+- Modified existing function → No new dependencies ✅
+- **Result:** No spec file update needed ✅
+
+**Change Made:** Added zero-padding to `extract_img_email.py`
+- Used `.zfill()` method → Built-in str method ✅
+- No new imports → No new dependencies ✅
+- **Result:** No spec file update needed ✅
+
+#### When in Doubt
+
+**If uncertain whether spec files need updating:**
+1. ✓ Check `hiddenimports` section - is your import listed?
+2. ✓ Check `datas` section - is your file listed?
+3. ✓ Test build locally - does it run without errors?
+4. ✓ Ask: "Did I add something from outside the project?"
+
+**Rule of Thumb:** Internal refactoring = no update needed. External additions = update required.
+
+---
+
 **Remember:** The analyzer is the primary tool. It provides a complete workflow from analysis through renaming. The batch renamer is only a fallback for edge cases.

@@ -17,6 +17,8 @@ for file_name in os.listdir(input_folder):
             print(f"Skipping file with unexpected name format: {file_name}")
             continue
         number = match.group(1)
+        # Zero-pad to 4 digits for proper alphabetical sorting (0001, 0010, 0100, 9999)
+        number_padded = number.zfill(4)
         msg = extract_msg.Message(os.path.join(input_folder, file_name))
         if not msg.attachments:
             print(f"No attachments found in {file_name}")
@@ -25,9 +27,9 @@ for file_name in os.listdir(input_folder):
             # Get extension from original filename
             _, ext = os.path.splitext(attachment.longFilename)
             if len(msg.attachments) > 1:
-                out_filename = f"fotofallen_2025_{number}_{idx}{ext}"
+                out_filename = f"fotofallen_2025_{number_padded}_{idx}{ext}"
             else:
-                out_filename = f"fotofallen_2025_{number}{ext}"
+                out_filename = f"fotofallen_2025_{number_padded}{ext}"
             out_path = os.path.join(output_folder, out_filename)
             with open(out_path, "wb") as f:
                 f.write(attachment.data)
