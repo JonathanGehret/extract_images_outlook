@@ -553,6 +553,7 @@ class ImageAnalyzer:
         self.image_files = []
         self.results = []
         self.current_excel_entry = None  # Track current image's Excel entry for renaming
+        self.reverse_order = False  # Track whether to reverse image order
         # Simple guards to avoid double-opening dialogs
         self._dialog_open = False
         self._manager_opening = False
@@ -796,6 +797,14 @@ class ImageAnalyzer:
             command=self.on_dummy_mode_toggle
         ).pack(anchor=tk.W, pady=(10, 0))
 
+        self.reverse_order_var = tk.BooleanVar(master=self.root, value=False)
+        ttk.Checkbutton(
+            right_frame,
+            text="Bilder rückwärts analysieren (falls neueste zuerst)",
+            variable=self.reverse_order_var,
+            command=self.on_reverse_order_toggle
+        ).pack(anchor=tk.W, pady=(5, 0))
+
         token_detected = bool(get_github_token())
         token_text = "GitHub Token erkannt: Ja" if token_detected else "GitHub Token erkannt: Nein"
         token_color = "green" if token_detected else "orange"
@@ -996,7 +1005,7 @@ class ImageAnalyzer:
             pass
 
     def refresh_image_files(self):
-        self.image_files = gm_io.get_image_files(self.images_folder)
+        self.image_files = gm_io.get_image_files(self.images_folder, reverse=self.reverse_order)
         self.current_image_index = 0
         if self.image_files:
             self.load_current_image()
@@ -1866,6 +1875,21 @@ class ImageAnalyzer:
                 self.analysis_status_label.config(text="Bereit für KI-Analyse", foreground="black")
             else:
                 self.analysis_status_label.config(text="Kein API-Token - nur Testdaten verfügbar", foreground="orange")
+    
+    def on_reverse_order_toggle(self):
+        """Handle reverse order checkbox toggle."""
+        self.reverse_order = self.reverse_order_var.get()
+        
+        if self.reverse_order:
+            print("✅ Rückwärts-Modus aktiviert - Bilder von höchster zu niedrigster Nummer")
+        else:
+            print("❌ Rückwärts-Modus deaktiviert - Bilder in aufsteigender Reihenfolge")
+        
+        # Reload images with new sorting order
+        self.refresh_image_files()
+        
+        # Get token value to update status
+        token_value = refresh_token_cache()
         
         if hasattr(self, 'token_status_label'):
             if token_value:

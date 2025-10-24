@@ -24,21 +24,43 @@ def _natural_sort_key(filename: str):
     return [int(part) if part.isdigit() else part.lower() for part in parts]
 
 
-def get_image_files(images_folder: str):
+def get_image_files(images_folder: str, reverse: bool = False):
+    """
+    Get sorted list of image files from folder.
+    
+    Args:
+        images_folder: Path to folder containing images
+        reverse: If True, sort in reverse order (newest/highest number first)
+    
+    Returns:
+        List of image filenames, sorted naturally (or reversed if requested)
+    """
     if not images_folder:
         return []
     try:
         files = [f for f in os.listdir(images_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
     except FileNotFoundError:
         return []
-    return sorted(files, key=_natural_sort_key)
+    return sorted(files, key=_natural_sort_key, reverse=reverse)
 
 
-def refresh_image_list(images_folder: str, old_list: list, current_index: int):
+def refresh_image_list(images_folder: str, old_list: list, current_index: int, reverse: bool = False):
+    """
+    Refresh the list of image files and maintain current position.
+    
+    Args:
+        images_folder: Path to folder containing images
+        old_list: Previous list of image files
+        current_index: Current position in old list
+        reverse: If True, sort in reverse order (newest/highest number first)
+    
+    Returns:
+        Tuple of (new_image_files, new_current_index)
+    """
     try:
         all_files = os.listdir(images_folder)
         image_files = [f for f in all_files if f.lower().endswith(('.jpg', '.jpeg', '.png')) and not f.startswith('.') and 'backup' not in f.lower()]
-        image_files.sort(key=_natural_sort_key)
+        image_files.sort(key=_natural_sort_key, reverse=reverse)
 
         old_current_file = old_list[current_index] if current_index < len(old_list) else None
         if old_current_file and old_current_file in image_files:
