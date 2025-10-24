@@ -184,7 +184,7 @@ class AnalysisBuffer:
         self.buffer = {}  # {image_index: analysis_result}
         self.analyzing = set()  # Currently being analyzed
         self.failed = set()  # Failed analyses
-        self.executor = ThreadPoolExecutor(max_workers=5)
+        self.executor = ThreadPoolExecutor(max_workers=2)  # GitHub Models allows only 2 concurrent requests!
         self.buffer_size = 5  # Keep 5 images ahead analyzed (changed from 3)
         self.batch_size = 5   # Initial batch size when explicitly triggered
         self.retry_attempts = {}
@@ -200,6 +200,8 @@ class AnalysisBuffer:
         self.rate_limit_type = None  # 'minute' or 'day'
         self.rate_limit_wait_until = None  # Timestamp when we can retry
         self.rate_limit_wait_seconds = 0  # How many seconds to wait
+        self.last_api_call_time = 0  # Track last API call for staggering
+        self.min_delay_between_calls = 0.8  # Minimum seconds between API calls
         
     def get_analysis(self, image_index, force_analysis=False):
         """Get analysis result for image, trigger batch if not available.
@@ -301,13 +303,38 @@ class AnalysisBuffer:
                 started += 1
     
     def _start_single_analysis(self, image_index):
-        """Start analyzing a single image asynchronously."""
+        """Start analyzing a single image asynchronously with staggered delays."""
         # Don't start if rate limited
         if self.rate_limited:
             return
         
         if image_index >= len(self.analyzer.image_files):
             return
+        
+        # Calculate delay to stagger API calls (avoid concurrent limit)
+        time_since_last_call = time.time() - self.last_api_call_time
+        delay_needed = max(0, self.min_delay_between_calls - time_since_last_call)
+        
+        if delay_needed > 0:
+            # Schedule this analysis after a delay
+            delay_ms = int(delay_needed * 1000)
+            print(f"DEBUG: Staggering API call for image {image_index} by {delay_needed:.2f}s to avoid concurrent limit")
+            try:
+                self.analyzer.root.after(delay_ms, lambda: self._do_start_analysis(image_index))
+            except Exception as exc:
+                print(f"DEBUG: Failed to schedule staggered analysis for {image_index}: {exc}, starting immediately")
+                self._do_start_analysis(image_index)
+        else:
+            self._do_start_analysis(image_index)
+    
+    def _do_start_analysis(self, image_index):
+        """Actually start the analysis (called after optional delay)."""
+        # Re-check conditions in case they changed during delay
+        if self.rate_limited or image_index >= len(self.analyzer.image_files):
+            return
+        
+        if image_index in self.analyzing or image_index in self.buffer:
+            return  # Already being analyzed or completed
             
         self.failed.discard(image_index)
         self.failed_timestamps.pop(image_index, None)
@@ -315,6 +342,10 @@ class AnalysisBuffer:
         self.pending_long_retry.discard(image_index)
         self.retry_attempts.setdefault(image_index, 0)
         self.analyzing.add(image_index)
+        
+        # Update last call time for staggering
+        self.last_api_call_time = time.time()
+        
         future = self.executor.submit(self._analyze_image, image_index)
 
         def _schedule_result(fut):
@@ -477,7 +508,9 @@ class AnalysisBuffer:
             self.rate_limit_wait_until = time.time() + wait_seconds
             
             # Format German message
-            if limit_type == 'minute':
+            if limit_type == 'concurrent':
+                friendly = "⚠️ Zu viele gleichzeitige Anfragen – warte kurz und versuche erneut"
+            elif limit_type == 'minute':
                 friendly = f"⏱️ API-Limit: Bitte {wait_seconds}s warten (1 Anfrage pro Minute)"
             elif limit_type == 'day':
                 hours = wait_seconds // 3600
@@ -497,8 +530,8 @@ class AnalysisBuffer:
             # Stop all buffer analysis
             self._stop_buffer_analysis()
             
-            # Schedule auto-resume if it's a short limit (under 5 minutes)
-            if limit_type == 'minute' and wait_seconds < 300:
+            # Schedule auto-resume - concurrent limits should retry quickly
+            if limit_type == 'concurrent' or (limit_type == 'minute' and wait_seconds < 300):
                 self._schedule_rate_limit_resume(image_index, wait_seconds)
             else:
                 # For daily limits, inform user
@@ -533,7 +566,7 @@ class AnalysisBuffer:
     def _parse_rate_limit_error(self, error_message):
         """Parse rate limit error and extract wait time.
         
-        Returns dict with 'wait_seconds' and 'limit_type' ('minute' or 'day') or None if not a rate limit error.
+        Returns dict with 'wait_seconds' and 'limit_type' ('minute', 'day', or 'concurrent') or None if not a rate limit error.
         """
         if not error_message:
             return None
@@ -543,6 +576,11 @@ class AnalysisBuffer:
         # Check for "429" or "RateLimitReached" or "Too Many Requests"
         if not any(keyword in error_message for keyword in ["429", "RateLimitReached", "Too Many Requests", "Rate limit"]):
             return None
+        
+        # Check for concurrent request limit (special case)
+        if 'UserConcurrentRequests' in error_message or ('per 0s' in error_message and 'exceeded' in error_message):
+            # "Rate limit of 2 per 0s exceeded for UserConcurrentRequests"
+            return {'wait_seconds': 2, 'limit_type': 'concurrent'}
         
         # Pattern: "Rate limit of X per Ys exceeded ... Please wait N seconds"
         # Example: "Rate limit of 1 per 60s exceeded for UserByModelByMinute. Please wait 8 seconds before retrying."
@@ -558,6 +596,9 @@ class AnalysisBuffer:
             limit_type = 'minute'
         elif 'per 86400s' in error_message or 'per day' in error_message or 'ByDay' in error_message:
             limit_type = 'day'
+        elif 'Token' in error_message and 'Minute' in error_message:
+            # Token limit per minute
+            limit_type = 'minute'
         else:
             # Default: if wait time > 5 minutes, assume daily limit
             limit_type = 'day' if wait_seconds > 300 else 'minute'
