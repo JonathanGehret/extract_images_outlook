@@ -48,14 +48,17 @@ build_windows_debug.bat
 ## Build Scripts Available
 
 ### Linux Scripts:
-- **`build_final.py`** - Main optimized build script
+- **`build_final.py`** - Main optimized build script (uses `KamerafallenTools-Linux.spec`)
 - **`create_release.py`** - Creates distribution package with docs
 - **`build_linux.sh`** - Simple shell script alternative
 
 ### Windows Scripts:
-- **`build_windows_release.bat`** - Primary end-to-end build + packaging script (creates portable folder and ZIP)
+- **`build_windows_release.bat`** - Primary end-to-end build + packaging script (uses `KamerafallenTools-Windows.spec`)
 - **`build_windows_debug.bat`** - Verbose troubleshooting build with detailed logs
-- **`old files that dont work/`** - Contains legacy scripts kept for reference only
+
+### PyInstaller Spec Files:
+- **`KamerafallenTools-Linux.spec`** - Canonical Linux/Unix build configuration
+- **`KamerafallenTools-Windows.spec`** - Canonical Windows build configuration
 
 ## Output Structure
 
@@ -134,8 +137,8 @@ KamerafallenTools-v2.0-windows/
 3. Size: ~128MB compressed
 
 ### Windows:
-1. Run `build_windows_v2.bat`
-2. Archive the `KamerafallenTools-v2.0-windows/` folder
+1. Run `build_windows_release.bat`
+2. Archive: `KamerafallenTools-v2.0-windows.zip`
 3. Expected size: ~100-150MB
 
 ## Troubleshooting

@@ -156,6 +156,12 @@ output/
 input/
 test_messages/
 
+# Debug and log files
+debug_kamerafallen.txt
+analyzer_debug.log
+*.log
+*_debug.txt
+
 # IDE files
 .vscode/
 .idea/

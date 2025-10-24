@@ -3,13 +3,17 @@
 This repository contains cross-platform build scripts for creating standalone executables.
 
 ## 🐧 Linux Build Files
-- **`build_final.py`** - Main optimized build script (RECOMMENDED)
+- **`build_final.py`** - Main optimized build script (uses `KamerafallenTools-Linux.spec`)
 - **`create_release.py`** - Creates distribution package with documentation
 - **`build_linux.sh`** - Simple shell script alternative
 
 ## 🪟 Windows Build Files  
-- **`build_windows_v2.bat`** - Updated optimized build script (RECOMMENDED)
-- **`build_windows.bat`** - Legacy build script (use v2 instead)
+- **`build_windows_release.bat`** - Production build + packaging (uses `KamerafallenTools-Windows.spec`)
+- **`build_windows_debug.bat`** - Verbose troubleshooting build with detailed logs
+
+## 📋 PyInstaller Spec Files
+- **`KamerafallenTools-Linux.spec`** - Canonical Linux/Unix build configuration
+- **`KamerafallenTools-Windows.spec`** - Canonical Windows build configuration
 
 ## 📚 Documentation
 - **`BUILD_INSTRUCTIONS.md`** - Comprehensive build guide for both platforms
