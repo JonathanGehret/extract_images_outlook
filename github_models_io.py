@@ -366,3 +366,108 @@ def save_single_result(excel_path, location, data):
         import traceback
         traceback.print_exc()
         raise
+
+
+def update_excel_entry_by_id(excel_path, location, entry_id, updates):
+    """Update specific fields in an existing Excel row by ID (prevents duplicates).
+    
+    Args:
+        excel_path: Path to Excel file
+        location: Sheet name (FP1, FP2, FP3, Nische)
+        entry_id: The Nr. (ID) of the row to update
+        updates: Dict of fields to update (e.g., {'filename': 'new_name.jpeg'})
+    
+    Returns:
+        True if successful, False if ID not found
+    """
+    import openpyxl
+    
+    try:
+        workbook = openpyxl.load_workbook(excel_path)
+        
+        if location not in workbook.sheetnames:
+            print(f"❌ Sheet {location} not found in workbook")
+            return False
+        
+        ws = workbook[location]
+        
+        # Read headers from row 1
+        headers = []
+        for col in range(1, ws.max_column + 1):
+            header_cell = ws.cell(row=1, column=col)
+            headers.append(header_cell.value or '')
+        
+        # Find column index for 'Nr. '
+        nr_col_idx = None
+        for idx, header in enumerate(headers, 1):
+            if header == 'Nr. ':
+                nr_col_idx = idx
+                break
+        
+        if nr_col_idx is None:
+            print("❌ 'Nr. ' column not found")
+            return False
+        
+        # Find the row with matching ID
+        target_row = None
+        for row_num in range(2, ws.max_row + 1):
+            cell_value = ws.cell(row=row_num, column=nr_col_idx).value
+            try:
+                if cell_value is not None and int(float(cell_value)) == int(entry_id):
+                    target_row = row_num
+                    break
+            except (ValueError, TypeError):
+                continue
+        
+        if target_row is None:
+            print(f"❌ Entry with ID {entry_id} not found in sheet {location}")
+            return False
+        
+        # Column mapping (same as save_single_result)
+        column_mapping = {
+            'Nr. ': 'Nr. ',
+            'Datum': 'Datum', 
+            'Uhrzeit': 'Uhrzeit',
+            'Generl': 'Generl',
+            'Luisa': 'Luisa', 
+            'Unbestimmt': 'Unbestimmt',
+            'Aktivität': 'Aktivität',
+            'Art 1': 'Art 1',
+            'Anzahl 1': 'Anz. 1',
+            'Art 2': 'Art 2',
+            'Anzahl 2': 'Anz. 2',
+            'Art 3': 'Art 3',
+            'Anzahl 3': 'Anz. 3',
+            'Art 4': 'Art 4',
+            'Anzahl 4': 'Anz. 4',
+            'Interaktion': 'Interaktion',
+            'Sonstiges': 'Sonstiges',
+            'filename': 'Filename'  # Add filename mapping if needed
+        }
+        
+        # Update only the specified fields
+        for field_key, new_value in updates.items():
+            # Map field key to Excel header
+            excel_header = column_mapping.get(field_key, field_key)
+            
+            # Find column index for this header
+            col_idx = None
+            for idx, header in enumerate(headers, 1):
+                if header == excel_header:
+                    col_idx = idx
+                    break
+            
+            if col_idx:
+                cell = ws.cell(row=target_row, column=col_idx)
+                cell.value = new_value
+                print(f"  Updated {excel_header}: {new_value}")
+        
+        workbook.save(excel_path)
+        print(f"✅ Updated entry ID {entry_id} in {excel_path} (sheet: {location})")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error updating Excel: {e}")
+        import traceback
+        traceback.print_exc()
+        return False

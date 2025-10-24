@@ -1434,9 +1434,17 @@ class ImageAnalyzer:
             messagebox.showerror("Fehler", "Fehler beim Umbenennen des Bildes", parent=self.root)
             return
             
-        # Update the Excel entry with the new filename
-        data['filename'] = new_image_name
-        gm_io.save_single_result(self.output_excel or OUTPUT_EXCEL, data['Standort'], data)
+        # Update the Excel entry with the new filename (UPDATE existing row, don't create duplicate)
+        # Use update function instead of save_single_result to prevent duplicates
+        success = gm_io.update_excel_entry_by_id(
+            self.output_excel or OUTPUT_EXCEL,
+            data['Standort'],
+            data['Nr. '],
+            {'filename': new_image_name}
+        )
+        
+        if not success:
+            print(f"⚠️ Warning: Could not update Excel with new filename")
         
         # Update the image files list to reflect the rename
         new_path = os.path.join(self.images_folder, new_image_name)
