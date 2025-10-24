@@ -27,15 +27,21 @@ Process, analyze, and organize wildlife camera trap images with AI assistance, s
    - Extracts image attachments with configurable naming patterns
    - Default pattern: `fotofallen_2025_{num}.jpeg`
 
-3. **`github_models_analyzer.py`** - AI-powered analyzer (PRIMARY TOOL)
-   - Uses GitHub Models API (GPT-4o/GPT-5) for image analysis
+3. **`github_models_analyzer.py`** - AI-powered analyzer (PRIMARY TOOL - 2,170 lines)
+   - Uses GitHub Models API (GPT-4o, gpt-4o-mini) for image analysis
    - **Complete workflow in one tool:**
      - AI analyzes image → Manual correction → Confirm → Save to Excel → **Automatic rename**
+   - **Rolling buffer system:** Always 5 images pre-analyzed ahead
+   - **Request staggering:** 0.8s delays between API calls
+   - **Smart rate limiting:** Auto-detection and recovery
    - Generates structured Excel output (multi-sheet by location)
    - **Auto-renames images** after confirmation based on analysis data
    - Format: `MM.DD.YY-FP1-Bartgeier_2-Kolkrabe.jpeg`
    - Includes test mode (dummy data) when no API token available
    - Debug logging to `~/.kamerafallen-tools/analyzer_debug.log`
+   - **Two main classes:**
+     - `AnalysisBuffer` (~560 lines): Async analysis queue management
+     - `ImageAnalyzer` (~1,400 lines): Tkinter GUI and user interaction
 
 4. **`rename_images_from_excel.py`** - Batch renamer (FALLBACK TOOL)
    - **Only needed as alternative/fallback** when analyzer wasn't used
@@ -75,6 +81,205 @@ Process, analyze, and organize wildlife camera trap images with AI assistance, s
 - Input: Original images + completed Excel file
 - Output: Batch-renamed images matching Excel data
 - Tool: Batch renamer
+
+---
+
+## ⚡ Recent Performance Improvements (October 2025)
+
+### Critical Bug Fixes & Optimizations
+
+#### **1. Concurrent Request Limit Violation (RESOLVED)**
+**Problem:** ThreadPoolExecutor was using 5 workers, but GitHub Models API only allows **2 concurrent requests**. This caused frequent `UserConcurrentRequests` errors.
+
+**Solution:**
+```python
+# github_models_analyzer.py, Line 188
+# BEFORE: ThreadPoolExecutor(max_workers=5) ❌
+# AFTER:  ThreadPoolExecutor(max_workers=2) ✅
+```
+
+**Result:** Zero concurrent limit violations in production.
+
+---
+
+#### **2. Request Staggering System (NEW)**
+**Problem:** Even with 2 workers, simultaneous request bursts triggered rate limits.
+
+**Solution:** Implemented 0.8-second minimum delay between API calls
+```python
+# github_models_analyzer.py, Lines 204-205
+self.last_api_call_time = 0
+self.min_delay_between_calls = 0.8
+
+# New method: _start_single_analysis()
+# - Calculates time since last API call
+# - Schedules delay if < 0.8s elapsed
+# - Calls _do_start_analysis() after delay
+```
+
+**Timeline Example:**
+```
+T=0.0s: Start image 0
+T=0.8s: Start image 1  (0.8s delay)
+T=1.6s: Start image 2  (0.8s delay)
+T=2.4s: Start image 3  (0.8s delay)
+```
+
+**Result:** Smooth, predictable API load distribution.
+
+---
+
+#### **3. Smart Rate Limit Detection (ENHANCED)**
+**Problem:** Multiple rate limit types required different handling strategies.
+
+**Solution:** Comprehensive detection in `_parse_rate_limit_error()` (Lines 565-598)
+```python
+def _parse_rate_limit_error(self, error_message):
+    # Detects 4 types:
+    
+    # 1. Concurrent (CRITICAL - new detection)
+    if 'UserConcurrentRequests' in error_message or 'per 0s' in error_message:
+        return {'wait_seconds': 2, 'limit_type': 'concurrent'}
+    
+    # 2. Token limit (60k tokens/minute)
+    if 'UserByModelByMinuteTokens' in error_message:
+        return {'wait_seconds': wait_time, 'limit_type': 'minute'}
+    
+    # 3. Per-minute (varies by model)
+    if wait_seconds < 120:
+        return {'wait_seconds': wait_seconds, 'limit_type': 'minute'}
+    
+    # 4. Per-day (50/day for gpt-4o, 8/day for gpt-4o-mini)
+    return {'wait_seconds': wait_seconds, 'limit_type': 'day'}
+```
+
+**German User Feedback:**
+- Concurrent: `⚠️ Zu viele gleichzeitige Anfragen – warte kurz und versuche erneut`
+- Per-minute: `⏱️ API-Limit: Bitte 60s warten (1 Anfrage pro Minute)`
+- Per-day: `🚫 Tageslimit erreicht: Bitte 3h 24m warten (50 Anfragen pro Tag)`
+
+**Result:** Clear feedback, auto-recovery from short limits.
+
+---
+
+#### **4. Rolling Buffer Continuation (FIXED)**
+**Problem:** Buffer stopped after initial batch, no new analyses queued on navigation.
+
+**Solution:** Enhanced `_ensure_buffer_ahead()` with staggering integration
+```python
+def _ensure_buffer_ahead(self, current_index):
+    """
+    Maintains 5-image lookahead continuously.
+    
+    Called after:
+    - Each image completion
+    - Each "Next" button press
+    - Each analysis confirmation
+    """
+    # Queues next image with 0.8s stagger
+    # Buffer never stops rolling
+```
+
+**Result:** Seamless navigation, images always pre-analyzed.
+
+---
+
+#### **5. Natural Sorting (NEW)**
+**Problem:** Default Python sorting: `fotofallen_2025_1, _10, _11, _2` (wrong!)
+
+**Solution:** Natural sort in `github_models_io.py`
+```python
+def natural_sort_key(filename):
+    return [int(part) if part.isdigit() else part.lower() 
+            for part in re.split(r'(\d+)', filename)]
+
+# Results: _1, _2, _3, ..., _10, _11, _12 ✅
+```
+
+**Result:** Correct chronological order always maintained.
+
+---
+
+#### **6. Zero-Padding for Extracted Images (NEW)**
+**Problem:** File numbers like `fotofallen_2025_1` vs `fotofallen_2025_100` sorted incorrectly.
+
+**Solution:** 4-digit zero-padding in `extract_img_email.py`
+```python
+# BEFORE: fotofallen_2025_{counter}.jpeg
+# AFTER:  fotofallen_2025_{counter:04d}.jpeg
+
+# Output: fotofallen_2025_0001.jpeg, _0002.jpeg, ..., _0234.jpeg
+```
+
+**Result:** Perfect sorting in file managers and code.
+
+---
+
+#### **7. Reverse Order Mode (NEW FEATURE)**
+**User Request:** Process newest images first.
+
+**Implementation:**
+```python
+# Checkbox in GUI: "☑ Rückwärts (neueste zuerst)"
+# Sorts image_files in reverse before display
+# Natural sorting + reverse = newest-first
+```
+
+**Result:** Users can prioritize recent captures.
+
+---
+
+### GitHub Models API Limits (Confirmed)
+
+| Limit Type | Value | Detection Method | Recovery |
+|------------|-------|------------------|----------|
+| **Concurrent** | **2 simultaneous** | `UserConcurrentRequests` or `per 0s` | 2s wait + auto-retry |
+| **Per-Minute** | Varies (10-24 req/min) | `per 60s exceeded` | Auto-resume after wait |
+| **Per-Day** | gpt-4o: 50, gpt-4o-mini: 8 | `per 86400s exceeded` | Manual wait |
+| **Tokens/Min** | 60,000 tokens | `UserByModelByMinuteTokens` | Auto-resume after 60s |
+
+**Critical Discovery:** gpt-4o-mini has only **8 requests/day** (much lower than gpt-4o's 50).
+
+---
+
+### Code Changes Summary
+
+| File | Lines Changed | Change Type | Purpose |
+|------|--------------|-------------|---------|
+| `github_models_analyzer.py` | Line 188 | Modified | max_workers 5→2 |
+| `github_models_analyzer.py` | Lines 204-205 | Added | Staggering variables |
+| `github_models_analyzer.py` | Lines 305-365 | Modified/New | Staggering logic + `_do_start_analysis()` |
+| `github_models_analyzer.py` | Lines 565-598 | Enhanced | Concurrent limit detection |
+| `github_models_analyzer.py` | Lines 498-544 | Modified | German concurrent messages |
+| `github_models_api.py` | Lines 40-48 | Removed | api.github.com endpoints (404 errors) |
+| `github_models_io.py` | Lines 120-135 | Added | Natural sorting function |
+| `extract_img_email.py` | Line 58 | Modified | Zero-padding for counters |
+
+**Total Impact:** ~150 lines changed/added across 4 files.
+
+---
+
+### Testing & Verification
+
+**Debug Log Evidence:**
+```bash
+# Successful staggering
+[2025-10-24 18:34:41] DEBUG: Staggering API call for image 2 by 0.80s
+[2025-10-24 18:34:41] DEBUG: Staggering API call for image 3 by 0.80s
+
+# Zero concurrent errors
+grep "UserConcurrentRequests" analyzer_debug.log
+# Result: 0 occurrences ✅
+
+# Buffer working correctly
+[2025-10-24 18:34:55] DEBUG: Buffer state - buffered: 3, analyzing: 3
+[2025-10-24 18:34:55] DEBUG: Found result in buffer for image 1: 1 Bartgeier
+
+# Rate limit auto-recovery
+[2025-10-24 18:35:16] Rate limit detected for image 4: ⏱️ API-Limit: Bitte 60s warten
+[2025-10-24 18:35:16] DEBUG: Scheduled auto-resume in 62s after rate limit
+[2025-10-24 18:36:18] DEBUG: Rate limit expired, resuming analysis from image 4
+```
 
 ---
 
