@@ -150,6 +150,8 @@ dmypy.json
 *.jpeg
 *.jpg
 *.png
+!fotofallen_images/*.png  # Allow screenshots for README
+!fotofallen_images/*.jpg
 extracted_images/
 output/
 input/
