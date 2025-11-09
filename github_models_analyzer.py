@@ -835,9 +835,15 @@ class ImageAnalyzer:
         right_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Left - image (fixed, no scrolling)
-        ttk.Label(left_frame, text="Bild", font=("Arial", 14)).pack()
-        self.image_label = ttk.Label(left_frame)
+        image_header_frame = ttk.Frame(left_frame)
+        image_header_frame.pack(fill=tk.X)
+        ttk.Label(image_header_frame, text="Bild", font=("Arial", 14)).pack(side=tk.LEFT)
+        ttk.Button(image_header_frame, text="🔍 Vollbild", command=self.open_fullscreen_viewer).pack(side=tk.RIGHT, padx=5)
+        
+        self.image_label = ttk.Label(left_frame, cursor="hand2")
         self.image_label.pack(pady=10)
+        # Make image clickable to open fullscreen
+        self.image_label.bind("<Button-1>", lambda e: self.open_fullscreen_viewer())
 
         # Right - scrollable form
         # Create canvas and scrollbar for the right side
@@ -2100,6 +2106,161 @@ class ImageAnalyzer:
         # Update buffer status display
         if self.analysis_buffer:
             self.analysis_buffer._update_buffer_status()
+
+    def open_fullscreen_viewer(self):
+        """Open fullscreen image viewer with zoom and pan capabilities."""
+        if self.current_image_index >= len(self.image_files):
+            return
+        
+        image_file = self.image_files[self.current_image_index]
+        images_folder = self.images_folder or IMAGES_FOLDER
+        image_path = os.path.join(images_folder, image_file)
+        
+        try:
+            # Create fullscreen window
+            fullscreen_window = tk.Toplevel(self.root)
+            fullscreen_window.title(f"Vollbild - {image_file}")
+            fullscreen_window.attributes('-fullscreen', True)
+            fullscreen_window.configure(bg='black')
+            
+            # Load original image (full resolution)
+            original_image = Image.open(image_path)
+            if original_image.mode in ('RGBA', 'LA', 'P'):
+                original_image = original_image.convert('RGB')
+            
+            # Variables for zoom and pan
+            zoom_level = 1.0
+            offset_x = 0
+            offset_y = 0
+            dragging = False
+            drag_start_x = 0
+            drag_start_y = 0
+            
+            # Get screen size
+            screen_width = fullscreen_window.winfo_screenwidth()
+            screen_height = fullscreen_window.winfo_screenheight()
+            
+            # Canvas for image display
+            canvas = tk.Canvas(fullscreen_window, bg='black', highlightthickness=0)
+            canvas.pack(fill=tk.BOTH, expand=True)
+            
+            # Control frame at top
+            control_frame = tk.Frame(fullscreen_window, bg='black')
+            control_frame.place(x=10, y=10)
+            
+            zoom_label = tk.Label(control_frame, text="Zoom: 100%", bg='black', fg='white', font=('Arial', 12))
+            zoom_label.pack(side=tk.LEFT, padx=5)
+            
+            btn_zoom_in = tk.Button(control_frame, text="➕ Vergrößern", command=lambda: zoom_image(1.2))
+            btn_zoom_in.pack(side=tk.LEFT, padx=2)
+            
+            btn_zoom_out = tk.Button(control_frame, text="➖ Verkleinern", command=lambda: zoom_image(0.8))
+            btn_zoom_out.pack(side=tk.LEFT, padx=2)
+            
+            btn_fit = tk.Button(control_frame, text="🖼️ Anpassen", command=lambda: fit_to_screen())
+            btn_fit.pack(side=tk.LEFT, padx=2)
+            
+            btn_close = tk.Button(control_frame, text="✖ Schließen", command=fullscreen_window.destroy)
+            btn_close.pack(side=tk.LEFT, padx=10)
+            
+            info_label = tk.Label(control_frame, text="Mausrad: Zoom | Ziehen: Verschieben | ESC: Schließen", 
+                                bg='black', fg='gray', font=('Arial', 10))
+            info_label.pack(side=tk.LEFT, padx=10)
+            
+            # Image reference
+            canvas_image_id = None
+            current_display_image = None
+            
+            def update_display():
+                nonlocal canvas_image_id, current_display_image, zoom_level, offset_x, offset_y
+                
+                # Calculate new size
+                new_width = int(original_image.width * zoom_level)
+                new_height = int(original_image.height * zoom_level)
+                
+                # Resize image
+                if zoom_level == 1.0:
+                    display_img = original_image.copy()
+                else:
+                    display_img = original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                # Update canvas image
+                current_display_image = ImageTk.PhotoImage(display_img, master=fullscreen_window)
+                
+                if canvas_image_id is None:
+                    canvas_image_id = canvas.create_image(
+                        screen_width // 2 + offset_x, 
+                        screen_height // 2 + offset_y,
+                        image=current_display_image
+                    )
+                else:
+                    canvas.coords(canvas_image_id, screen_width // 2 + offset_x, screen_height // 2 + offset_y)
+                    canvas.itemconfig(canvas_image_id, image=current_display_image)
+                
+                # Update zoom label
+                zoom_label.config(text=f"Zoom: {int(zoom_level * 100)}%")
+            
+            def zoom_image(factor):
+                nonlocal zoom_level
+                new_zoom = zoom_level * factor
+                # Limit zoom range
+                if 0.1 <= new_zoom <= 10.0:
+                    zoom_level = new_zoom
+                    update_display()
+            
+            def fit_to_screen():
+                nonlocal zoom_level, offset_x, offset_y
+                # Calculate zoom to fit screen
+                width_ratio = screen_width / original_image.width
+                height_ratio = (screen_height - 100) / original_image.height  # Reserve space for controls
+                zoom_level = min(width_ratio, height_ratio, 1.0)  # Don't zoom in beyond 100%
+                offset_x = 0
+                offset_y = 0
+                update_display()
+            
+            def on_mousewheel(event):
+                # Zoom with mousewheel
+                if event.delta > 0 or event.num == 4:
+                    zoom_image(1.1)
+                elif event.delta < 0 or event.num == 5:
+                    zoom_image(0.9)
+            
+            def on_mouse_press(event):
+                nonlocal dragging, drag_start_x, drag_start_y
+                dragging = True
+                drag_start_x = event.x
+                drag_start_y = event.y
+            
+            def on_mouse_drag(event):
+                nonlocal offset_x, offset_y, drag_start_x, drag_start_y
+                if dragging:
+                    dx = event.x - drag_start_x
+                    dy = event.y - drag_start_y
+                    offset_x += dx
+                    offset_y += dy
+                    drag_start_x = event.x
+                    drag_start_y = event.y
+                    update_display()
+            
+            def on_mouse_release(event):
+                nonlocal dragging
+                dragging = False
+            
+            # Bind events
+            canvas.bind("<MouseWheel>", on_mousewheel)  # Windows/Mac
+            canvas.bind("<Button-4>", on_mousewheel)    # Linux scroll up
+            canvas.bind("<Button-5>", on_mousewheel)    # Linux scroll down
+            canvas.bind("<ButtonPress-1>", on_mouse_press)
+            canvas.bind("<B1-Motion>", on_mouse_drag)
+            canvas.bind("<ButtonRelease-1>", on_mouse_release)
+            fullscreen_window.bind("<Escape>", lambda e: fullscreen_window.destroy())
+            
+            # Initial display (fit to screen)
+            fit_to_screen()
+            
+        except Exception as e:
+            print(f"Fehler beim Öffnen des Vollbildmodus: {e}")
+            messagebox.showerror("Fehler", f"Konnte Vollbildansicht nicht öffnen:\n{e}", parent=self.root)
 
     def run(self):
         """Run the analyzer with proper cleanup."""
