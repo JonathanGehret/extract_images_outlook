@@ -894,7 +894,8 @@ class ImageAnalyzer:
 
         ttk.Label(right_frame, text="Standort:").pack(anchor=tk.W)
         self.location_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.location_var, width=30).pack(anchor=tk.W)
+        location_combo = ttk.Combobox(right_frame, textvariable=self.location_var, width=28, values=["FP1", "FP2", "FP3", "Nische"])
+        location_combo.pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W)
         self.time_var = tk.StringVar(master=self.root)
@@ -918,45 +919,58 @@ class ImageAnalyzer:
         # Species fields (updated to 4)
         ttk.Label(right_frame, text="Tierarten und Anzahl:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10, 5))
         
+        # Common species list for dropdowns
+        species_list = ["", "Bartgeier", "Steinadler", "Kolkrabe", "Alpendohle", "Fuchs", "Gämse", 
+                       "Steinbock", "Murmeltier", "Marder", "Reh", "Hirsch", "Rabenkrähe", "Mensch"]
+        count_list = ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+        
         # Species 1
         species_frame1 = ttk.Frame(right_frame)
         species_frame1.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame1, text="Art 1:").pack(side=tk.LEFT)
         self.species1_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame1, textvariable=self.species1_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species1_combo = ttk.Combobox(species_frame1, textvariable=self.species1_var, width=18, values=species_list)
+        species1_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame1, text="Anzahl:").pack(side=tk.LEFT)
         self.count1_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame1, textvariable=self.count1_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count1_combo = ttk.Combobox(species_frame1, textvariable=self.count1_var, width=6, values=count_list)
+        count1_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 2
         species_frame2 = ttk.Frame(right_frame)
         species_frame2.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame2, text="Art 2:").pack(side=tk.LEFT)
         self.species2_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame2, textvariable=self.species2_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species2_combo = ttk.Combobox(species_frame2, textvariable=self.species2_var, width=18, values=species_list)
+        species2_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame2, text="Anzahl:").pack(side=tk.LEFT)
         self.count2_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame2, textvariable=self.count2_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count2_combo = ttk.Combobox(species_frame2, textvariable=self.count2_var, width=6, values=count_list)
+        count2_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 3 (new)
         species_frame3 = ttk.Frame(right_frame)
         species_frame3.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame3, text="Art 3:").pack(side=tk.LEFT)
         self.species3_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame3, textvariable=self.species3_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species3_combo = ttk.Combobox(species_frame3, textvariable=self.species3_var, width=18, values=species_list)
+        species3_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame3, text="Anzahl:").pack(side=tk.LEFT)
         self.count3_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame3, textvariable=self.count3_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count3_combo = ttk.Combobox(species_frame3, textvariable=self.count3_var, width=6, values=count_list)
+        count3_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 4 (new)
         species_frame4 = ttk.Frame(right_frame)
         species_frame4.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame4, text="Art 4:").pack(side=tk.LEFT)
         self.species4_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame4, textvariable=self.species4_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species4_combo = ttk.Combobox(species_frame4, textvariable=self.species4_var, width=18, values=species_list)
+        species4_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame4, text="Anzahl:").pack(side=tk.LEFT)
         self.count4_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame4, textvariable=self.count4_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count4_combo = ttk.Combobox(species_frame4, textvariable=self.count4_var, width=6, values=count_list)
+        count4_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10, 0))
         self.animals_text = tk.Text(right_frame, height=2, width=40, state='disabled')
@@ -975,11 +989,15 @@ class ImageAnalyzer:
         # extras
         ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10, 0))
         self.aktivitat_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.aktivitat_var, width=30).pack(anchor=tk.W)
+        aktivitat_combo = ttk.Combobox(right_frame, textvariable=self.aktivitat_var, width=28, 
+                                       values=["", "Fliegen", "Stehen", "Fressen", "Sitzen", "Laufen", "Beobachten"])
+        aktivitat_combo.pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Interaktion:").pack(anchor=tk.W)
         self.interaktion_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.interaktion_var, width=30).pack(anchor=tk.W)
+        interaktion_combo = ttk.Combobox(right_frame, textvariable=self.interaktion_var, width=28,
+                                         values=["", "Keine", "Territorial", "Spielerisch", "Aggressiv", "Neutral"])
+        interaktion_combo.pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Sonstiges:").pack(anchor=tk.W)
         self.sonstiges_text = tk.Text(right_frame, height=2, width=40)
