@@ -91,6 +91,27 @@ Multi-sheet workbook with columns: Nr, Standort, Datum, Uhrzeit, Art 1-4, Anzahl
 
 ---
 
+##  Build Packages
+
+**Windows (release)**
+- Run `build_windows_release.bat` from the repository root (PowerShell or Cmd)
+- Script creates `.build_env`, installs requirements, runs `KamerafallenTools-Windows.spec`, and zips `dist/KamerafallenTools-windows-*.zip`
+- Output folders: `dist/KamerafallenTools-windows-portable/` and a versioned ZIP archive
+
+**Windows (debug build)**
+- Use `build_windows_debug.bat` for verbose logging and environment diagnostics
+- All logs stored beside the script (`build_windows_debug-YYYYMMDD-HHMMSS.log`)
+
+**Quick smoke test**
+- After a successful build, execute `test_windows_build.bat` to rebuild and launch `dist/KamerafallenTools.exe`
+
+**Linux package**
+- Execute `./build_linux.sh` (make executable with `chmod +x build_linux.sh` once)
+- Produces `dist/KamerafallenTools-linux-portable/` and `dist/KamerafallenTools-linux-v1.0.tar.gz`
+
+**Cross-platform helper**
+- `python build_final.py` cleans artifacts, generates an optimized spec, and builds the active platform in one go
+
 ## 📚 Documentation
 
 - **[Architecture Guide](docs/ARCHITECTURE.md)** - Technical deep-dive
