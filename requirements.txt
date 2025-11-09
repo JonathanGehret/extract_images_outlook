@@ -5,5 +5,6 @@ Pillow
 requests
 pytesseract
 python-dotenv
+tkcalendar
 # Optional (only if you use the OpenAI python client directly)
 # openai

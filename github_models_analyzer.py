@@ -25,6 +25,7 @@ import time
 import builtins
 from datetime import datetime, timedelta
 from pathlib import Path
+from tkcalendar import DateEntry
 import github_models_api as gm_api
 import github_models_io as gm_io
 
@@ -700,7 +701,7 @@ class AnalysisBuffer:
             if result['date']:
                 self.analyzer.date_var.set(result['date'])
             if result['time']:
-                self.analyzer.time_var.set(result['time'])
+                self.analyzer.parse_and_set_time(result['time'])
             print(
                 "DEBUG: UI updated for current image "
                 f"{self.analyzer.current_image_index} -> location={result['location']}, "
@@ -835,9 +836,22 @@ class ImageAnalyzer:
         right_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Left - image (fixed, no scrolling)
-        ttk.Label(left_frame, text="Bild", font=("Arial", 14)).pack()
-        self.image_label = ttk.Label(left_frame)
-        self.image_label.pack(pady=10)
+        image_header_frame = ttk.Frame(left_frame)
+        image_header_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(image_header_frame, text="Bild", font=("Arial", 14, "bold")).pack(side=tk.LEFT)
+        ttk.Button(image_header_frame, text="🔍 Vollbild", command=self.open_fullscreen_viewer).pack(side=tk.RIGHT, padx=5)
+        
+        # Styled frame around image with border and shadow effect
+        image_outer_frame = tk.Frame(left_frame, bg="#2c3e50", padx=3, pady=3)
+        image_outer_frame.pack(pady=5)
+        
+        image_inner_frame = tk.Frame(image_outer_frame, bg="#34495e", padx=2, pady=2)
+        image_inner_frame.pack()
+        
+        self.image_label = tk.Label(image_inner_frame, cursor="hand2", bg="#1a1a1a", relief=tk.FLAT)
+        self.image_label.pack()
+        # Make image clickable to open fullscreen
+        self.image_label.bind("<Button-1>", lambda e: self.open_fullscreen_viewer())
 
         # Right - scrollable form
         # Create canvas and scrollbar for the right side
@@ -888,15 +902,60 @@ class ImageAnalyzer:
 
         ttk.Label(right_frame, text="Standort:").pack(anchor=tk.W)
         self.location_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.location_var, width=30).pack(anchor=tk.W)
+        location_combo = ttk.Combobox(right_frame, textvariable=self.location_var, width=28, values=["FP1", "FP2", "FP3", "Nische"])
+        location_combo.pack(anchor=tk.W)
 
-        ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W)
-        self.time_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.time_var, width=30).pack(anchor=tk.W)
-
-        ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W)
+        # Date picker
+        ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W, pady=(5, 0))
         self.date_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
+        date_frame = ttk.Frame(right_frame)
+        date_frame.pack(anchor=tk.W, fill=tk.X)
+        self.date_picker = DateEntry(date_frame, textvariable=self.date_var, width=26, 
+                                     background='darkblue', foreground='white', 
+                                     borderwidth=2, date_pattern='dd.mm.yyyy')
+        self.date_picker.pack(side=tk.LEFT)
+
+        # Time picker with hour and minute dropdowns
+        ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W, pady=(5, 0))
+        time_frame = ttk.Frame(right_frame)
+        time_frame.pack(anchor=tk.W)
+        
+        self.hour_var = tk.StringVar(master=self.root, value="12")
+        self.minute_var = tk.StringVar(master=self.root, value="00")
+        self.time_var = tk.StringVar(master=self.root)  # Keep for compatibility
+        
+        hour_combo = ttk.Combobox(time_frame, textvariable=self.hour_var, width=4, 
+                                  values=[f"{h:02d}" for h in range(24)])
+        hour_combo.pack(side=tk.LEFT)
+        ttk.Label(time_frame, text=":").pack(side=tk.LEFT, padx=2)
+        minute_combo = ttk.Combobox(time_frame, textvariable=self.minute_var, width=4,
+                                    values=[f"{m:02d}" for m in range(0, 60, 5)])
+        minute_combo.pack(side=tk.LEFT)
+        
+        # Update time_var when hour or minute changes
+        def update_time_var(*args):
+            self.time_var.set(f"{self.hour_var.get()}:{self.minute_var.get()}")
+        self.hour_var.trace('w', update_time_var)
+        self.minute_var.trace('w', update_time_var)
+        
+        # Helper method to parse time string and update hour/minute
+        def parse_and_set_time(time_string):
+            """Parse time string (HH:MM or HH:MM:SS) and update hour/minute vars."""
+            try:
+                if time_string and ':' in time_string:
+                    parts = time_string.split(':')
+                    if len(parts) >= 2:
+                        self.hour_var.set(f"{int(parts[0]):02d}")
+                        self.minute_var.set(f"{int(parts[1]):02d}")
+                        return
+            except (ValueError, IndexError):
+                pass
+            # Default values if parsing fails
+            self.hour_var.set("12")
+            self.minute_var.set("00")
+        
+        # Store the helper as an instance method
+        self.parse_and_set_time = parse_and_set_time
 
         # Generl / Luisa
         special_frame = ttk.Frame(right_frame)
@@ -912,45 +971,58 @@ class ImageAnalyzer:
         # Species fields (updated to 4)
         ttk.Label(right_frame, text="Tierarten und Anzahl:", font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(10, 5))
         
+        # Common species list for dropdowns
+        species_list = ["", "Bartgeier", "Steinadler", "Kolkrabe", "Alpendohle", "Fuchs", "Gämse", 
+                       "Steinbock", "Murmeltier", "Marder", "Reh", "Hirsch", "Rabenkrähe", "Mensch"]
+        count_list = ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+        
         # Species 1
         species_frame1 = ttk.Frame(right_frame)
         species_frame1.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame1, text="Art 1:").pack(side=tk.LEFT)
         self.species1_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame1, textvariable=self.species1_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species1_combo = ttk.Combobox(species_frame1, textvariable=self.species1_var, width=18, values=species_list)
+        species1_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame1, text="Anzahl:").pack(side=tk.LEFT)
         self.count1_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame1, textvariable=self.count1_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count1_combo = ttk.Combobox(species_frame1, textvariable=self.count1_var, width=6, values=count_list)
+        count1_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 2
         species_frame2 = ttk.Frame(right_frame)
         species_frame2.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame2, text="Art 2:").pack(side=tk.LEFT)
         self.species2_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame2, textvariable=self.species2_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species2_combo = ttk.Combobox(species_frame2, textvariable=self.species2_var, width=18, values=species_list)
+        species2_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame2, text="Anzahl:").pack(side=tk.LEFT)
         self.count2_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame2, textvariable=self.count2_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count2_combo = ttk.Combobox(species_frame2, textvariable=self.count2_var, width=6, values=count_list)
+        count2_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 3 (new)
         species_frame3 = ttk.Frame(right_frame)
         species_frame3.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame3, text="Art 3:").pack(side=tk.LEFT)
         self.species3_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame3, textvariable=self.species3_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species3_combo = ttk.Combobox(species_frame3, textvariable=self.species3_var, width=18, values=species_list)
+        species3_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame3, text="Anzahl:").pack(side=tk.LEFT)
         self.count3_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame3, textvariable=self.count3_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count3_combo = ttk.Combobox(species_frame3, textvariable=self.count3_var, width=6, values=count_list)
+        count3_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         # Species 4 (new)
         species_frame4 = ttk.Frame(right_frame)
         species_frame4.pack(anchor=tk.W, fill=tk.X, pady=2)
         ttk.Label(species_frame4, text="Art 4:").pack(side=tk.LEFT)
         self.species4_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame4, textvariable=self.species4_var, width=20).pack(side=tk.LEFT, padx=(5, 10))
+        species4_combo = ttk.Combobox(species_frame4, textvariable=self.species4_var, width=18, values=species_list)
+        species4_combo.pack(side=tk.LEFT, padx=(5, 10))
         ttk.Label(species_frame4, text="Anzahl:").pack(side=tk.LEFT)
         self.count4_var = tk.StringVar(master=self.root)
-        ttk.Entry(species_frame4, textvariable=self.count4_var, width=8).pack(side=tk.LEFT, padx=(5, 0))
+        count4_combo = ttk.Combobox(species_frame4, textvariable=self.count4_var, width=6, values=count_list)
+        count4_combo.pack(side=tk.LEFT, padx=(5, 0))
 
         ttk.Label(right_frame, text="Zusammenfassung:").pack(anchor=tk.W, pady=(10, 0))
         self.animals_text = tk.Text(right_frame, height=2, width=40, state='disabled')
@@ -969,11 +1041,15 @@ class ImageAnalyzer:
         # extras
         ttk.Label(right_frame, text="Aktivität:").pack(anchor=tk.W, pady=(10, 0))
         self.aktivitat_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.aktivitat_var, width=30).pack(anchor=tk.W)
+        aktivitat_combo = ttk.Combobox(right_frame, textvariable=self.aktivitat_var, width=28, 
+                                       values=["", "Fliegen", "Stehen", "Fressen", "Sitzen", "Laufen", "Beobachten"])
+        aktivitat_combo.pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Interaktion:").pack(anchor=tk.W)
         self.interaktion_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.interaktion_var, width=30).pack(anchor=tk.W)
+        interaktion_combo = ttk.Combobox(right_frame, textvariable=self.interaktion_var, width=28,
+                                         values=["", "Keine", "Territorial", "Spielerisch", "Aggressiv", "Neutral"])
+        interaktion_combo.pack(anchor=tk.W)
 
         ttk.Label(right_frame, text="Sonstiges:").pack(anchor=tk.W)
         self.sonstiges_text = tk.Text(right_frame, height=2, width=40)
@@ -1297,7 +1373,8 @@ class ImageAnalyzer:
     def clear_fields(self):
         print("DEBUG: clear_fields invoked")
         self.location_var.set("")
-        self.time_var.set("")
+        self.hour_var.set("12")
+        self.minute_var.set("00")
         self.date_var.set("")
         self.species1_var.set("")
         self.count1_var.set("")
@@ -1407,7 +1484,7 @@ class ImageAnalyzer:
         if result.get('date'):
             self.date_var.set(result['date'])
         if result.get('time'):
-            self.time_var.set(result['time'])
+            self.parse_and_set_time(result['time'])
 
     def _update_special_checkboxes(self, animals_str):
         """Auto-select Generl/Luisa checkboxes based on analysis output."""
@@ -1471,7 +1548,8 @@ class ImageAnalyzer:
         sonstiges_options = ["", "Klares Wetter", "Neblig", "Regen", "Schnee sichtbar", "Gute Sicht"]
 
         self.location_var.set(random.choice(locations))
-        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:00")
+        time_str = f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:00"
+        self.parse_and_set_time(time_str)
         self.date_var.set(f"{random.randint(1,31):02d}.{random.randint(7,8):02d}.2025")
 
         num_species = random.choices([0, 1, 2, 3, 4], weights=[10, 40, 30, 15, 5])[0]  # Updated to allow up to 4
@@ -1537,14 +1615,14 @@ class ImageAnalyzer:
 
             # Populate other fields as before
             self.location_var.set(location)
-            self.time_var.set(time_str)
+            self.parse_and_set_time(time_str)
             self.date_var.set(date_str)
             self.parse_animals_to_species(animals)
         except Exception as e:
             print(f"Fehler bei KI-Analyse: {e}")
             animals, location, time_str, date_str = "", "", "", ""
             self.location_var.set(location)
-            self.time_var.set(time_str)
+            self.parse_and_set_time(time_str)
             self.date_var.set(date_str)
             self.parse_animals_to_species(animals)
 
@@ -2100,6 +2178,161 @@ class ImageAnalyzer:
         # Update buffer status display
         if self.analysis_buffer:
             self.analysis_buffer._update_buffer_status()
+
+    def open_fullscreen_viewer(self):
+        """Open fullscreen image viewer with zoom and pan capabilities."""
+        if self.current_image_index >= len(self.image_files):
+            return
+        
+        image_file = self.image_files[self.current_image_index]
+        images_folder = self.images_folder or IMAGES_FOLDER
+        image_path = os.path.join(images_folder, image_file)
+        
+        try:
+            # Create fullscreen window
+            fullscreen_window = tk.Toplevel(self.root)
+            fullscreen_window.title(f"Vollbild - {image_file}")
+            fullscreen_window.attributes('-fullscreen', True)
+            fullscreen_window.configure(bg='black')
+            
+            # Load original image (full resolution)
+            original_image = Image.open(image_path)
+            if original_image.mode in ('RGBA', 'LA', 'P'):
+                original_image = original_image.convert('RGB')
+            
+            # Variables for zoom and pan
+            zoom_level = 1.0
+            offset_x = 0
+            offset_y = 0
+            dragging = False
+            drag_start_x = 0
+            drag_start_y = 0
+            
+            # Get screen size
+            screen_width = fullscreen_window.winfo_screenwidth()
+            screen_height = fullscreen_window.winfo_screenheight()
+            
+            # Canvas for image display
+            canvas = tk.Canvas(fullscreen_window, bg='black', highlightthickness=0)
+            canvas.pack(fill=tk.BOTH, expand=True)
+            
+            # Control frame at top
+            control_frame = tk.Frame(fullscreen_window, bg='black')
+            control_frame.place(x=10, y=10)
+            
+            zoom_label = tk.Label(control_frame, text="Zoom: 100%", bg='black', fg='white', font=('Arial', 12))
+            zoom_label.pack(side=tk.LEFT, padx=5)
+            
+            btn_zoom_in = tk.Button(control_frame, text="➕ Vergrößern", command=lambda: zoom_image(1.2))
+            btn_zoom_in.pack(side=tk.LEFT, padx=2)
+            
+            btn_zoom_out = tk.Button(control_frame, text="➖ Verkleinern", command=lambda: zoom_image(0.8))
+            btn_zoom_out.pack(side=tk.LEFT, padx=2)
+            
+            btn_fit = tk.Button(control_frame, text="🖼️ Anpassen", command=lambda: fit_to_screen())
+            btn_fit.pack(side=tk.LEFT, padx=2)
+            
+            btn_close = tk.Button(control_frame, text="✖ Schließen", command=fullscreen_window.destroy)
+            btn_close.pack(side=tk.LEFT, padx=10)
+            
+            info_label = tk.Label(control_frame, text="Mausrad: Zoom | Ziehen: Verschieben | ESC: Schließen", 
+                                bg='black', fg='gray', font=('Arial', 10))
+            info_label.pack(side=tk.LEFT, padx=10)
+            
+            # Image reference
+            canvas_image_id = None
+            current_display_image = None
+            
+            def update_display():
+                nonlocal canvas_image_id, current_display_image, zoom_level, offset_x, offset_y
+                
+                # Calculate new size
+                new_width = int(original_image.width * zoom_level)
+                new_height = int(original_image.height * zoom_level)
+                
+                # Resize image
+                if zoom_level == 1.0:
+                    display_img = original_image.copy()
+                else:
+                    display_img = original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                
+                # Update canvas image
+                current_display_image = ImageTk.PhotoImage(display_img, master=fullscreen_window)
+                
+                if canvas_image_id is None:
+                    canvas_image_id = canvas.create_image(
+                        screen_width // 2 + offset_x, 
+                        screen_height // 2 + offset_y,
+                        image=current_display_image
+                    )
+                else:
+                    canvas.coords(canvas_image_id, screen_width // 2 + offset_x, screen_height // 2 + offset_y)
+                    canvas.itemconfig(canvas_image_id, image=current_display_image)
+                
+                # Update zoom label
+                zoom_label.config(text=f"Zoom: {int(zoom_level * 100)}%")
+            
+            def zoom_image(factor):
+                nonlocal zoom_level
+                new_zoom = zoom_level * factor
+                # Limit zoom range
+                if 0.1 <= new_zoom <= 10.0:
+                    zoom_level = new_zoom
+                    update_display()
+            
+            def fit_to_screen():
+                nonlocal zoom_level, offset_x, offset_y
+                # Calculate zoom to fit screen
+                width_ratio = screen_width / original_image.width
+                height_ratio = (screen_height - 100) / original_image.height  # Reserve space for controls
+                zoom_level = min(width_ratio, height_ratio, 1.0)  # Don't zoom in beyond 100%
+                offset_x = 0
+                offset_y = 0
+                update_display()
+            
+            def on_mousewheel(event):
+                # Zoom with mousewheel
+                if event.delta > 0 or event.num == 4:
+                    zoom_image(1.1)
+                elif event.delta < 0 or event.num == 5:
+                    zoom_image(0.9)
+            
+            def on_mouse_press(event):
+                nonlocal dragging, drag_start_x, drag_start_y
+                dragging = True
+                drag_start_x = event.x
+                drag_start_y = event.y
+            
+            def on_mouse_drag(event):
+                nonlocal offset_x, offset_y, drag_start_x, drag_start_y
+                if dragging:
+                    dx = event.x - drag_start_x
+                    dy = event.y - drag_start_y
+                    offset_x += dx
+                    offset_y += dy
+                    drag_start_x = event.x
+                    drag_start_y = event.y
+                    update_display()
+            
+            def on_mouse_release(event):
+                nonlocal dragging
+                dragging = False
+            
+            # Bind events
+            canvas.bind("<MouseWheel>", on_mousewheel)  # Windows/Mac
+            canvas.bind("<Button-4>", on_mousewheel)    # Linux scroll up
+            canvas.bind("<Button-5>", on_mousewheel)    # Linux scroll down
+            canvas.bind("<ButtonPress-1>", on_mouse_press)
+            canvas.bind("<B1-Motion>", on_mouse_drag)
+            canvas.bind("<ButtonRelease-1>", on_mouse_release)
+            fullscreen_window.bind("<Escape>", lambda e: fullscreen_window.destroy())
+            
+            # Initial display (fit to screen)
+            fit_to_screen()
+            
+        except Exception as e:
+            print(f"Fehler beim Öffnen des Vollbildmodus: {e}")
+            messagebox.showerror("Fehler", f"Konnte Vollbildansicht nicht öffnen:\n{e}", parent=self.root)
 
     def run(self):
         """Run the analyzer with proper cleanup."""
