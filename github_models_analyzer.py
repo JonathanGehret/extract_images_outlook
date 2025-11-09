@@ -25,6 +25,7 @@ import time
 import builtins
 from datetime import datetime, timedelta
 from pathlib import Path
+from tkcalendar import DateEntry
 import github_models_api as gm_api
 import github_models_io as gm_io
 
@@ -700,7 +701,7 @@ class AnalysisBuffer:
             if result['date']:
                 self.analyzer.date_var.set(result['date'])
             if result['time']:
-                self.analyzer.time_var.set(result['time'])
+                self.analyzer.parse_and_set_time(result['time'])
             print(
                 "DEBUG: UI updated for current image "
                 f"{self.analyzer.current_image_index} -> location={result['location']}, "
@@ -836,12 +837,19 @@ class ImageAnalyzer:
 
         # Left - image (fixed, no scrolling)
         image_header_frame = ttk.Frame(left_frame)
-        image_header_frame.pack(fill=tk.X)
-        ttk.Label(image_header_frame, text="Bild", font=("Arial", 14)).pack(side=tk.LEFT)
+        image_header_frame.pack(fill=tk.X, pady=(0, 5))
+        ttk.Label(image_header_frame, text="Bild", font=("Arial", 14, "bold")).pack(side=tk.LEFT)
         ttk.Button(image_header_frame, text="🔍 Vollbild", command=self.open_fullscreen_viewer).pack(side=tk.RIGHT, padx=5)
         
-        self.image_label = ttk.Label(left_frame, cursor="hand2")
-        self.image_label.pack(pady=10)
+        # Styled frame around image with border and shadow effect
+        image_outer_frame = tk.Frame(left_frame, bg="#2c3e50", padx=3, pady=3)
+        image_outer_frame.pack(pady=5)
+        
+        image_inner_frame = tk.Frame(image_outer_frame, bg="#34495e", padx=2, pady=2)
+        image_inner_frame.pack()
+        
+        self.image_label = tk.Label(image_inner_frame, cursor="hand2", bg="#1a1a1a", relief=tk.FLAT)
+        self.image_label.pack()
         # Make image clickable to open fullscreen
         self.image_label.bind("<Button-1>", lambda e: self.open_fullscreen_viewer())
 
@@ -897,13 +905,57 @@ class ImageAnalyzer:
         location_combo = ttk.Combobox(right_frame, textvariable=self.location_var, width=28, values=["FP1", "FP2", "FP3", "Nische"])
         location_combo.pack(anchor=tk.W)
 
-        ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W)
-        self.time_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.time_var, width=30).pack(anchor=tk.W)
-
-        ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W)
+        # Date picker
+        ttk.Label(right_frame, text="Datum:").pack(anchor=tk.W, pady=(5, 0))
         self.date_var = tk.StringVar(master=self.root)
-        ttk.Entry(right_frame, textvariable=self.date_var, width=30).pack(anchor=tk.W)
+        date_frame = ttk.Frame(right_frame)
+        date_frame.pack(anchor=tk.W, fill=tk.X)
+        self.date_picker = DateEntry(date_frame, textvariable=self.date_var, width=26, 
+                                     background='darkblue', foreground='white', 
+                                     borderwidth=2, date_pattern='dd.mm.yyyy')
+        self.date_picker.pack(side=tk.LEFT)
+
+        # Time picker with hour and minute dropdowns
+        ttk.Label(right_frame, text="Uhrzeit:").pack(anchor=tk.W, pady=(5, 0))
+        time_frame = ttk.Frame(right_frame)
+        time_frame.pack(anchor=tk.W)
+        
+        self.hour_var = tk.StringVar(master=self.root, value="12")
+        self.minute_var = tk.StringVar(master=self.root, value="00")
+        self.time_var = tk.StringVar(master=self.root)  # Keep for compatibility
+        
+        hour_combo = ttk.Combobox(time_frame, textvariable=self.hour_var, width=4, 
+                                  values=[f"{h:02d}" for h in range(24)])
+        hour_combo.pack(side=tk.LEFT)
+        ttk.Label(time_frame, text=":").pack(side=tk.LEFT, padx=2)
+        minute_combo = ttk.Combobox(time_frame, textvariable=self.minute_var, width=4,
+                                    values=[f"{m:02d}" for m in range(0, 60, 5)])
+        minute_combo.pack(side=tk.LEFT)
+        
+        # Update time_var when hour or minute changes
+        def update_time_var(*args):
+            self.time_var.set(f"{self.hour_var.get()}:{self.minute_var.get()}")
+        self.hour_var.trace('w', update_time_var)
+        self.minute_var.trace('w', update_time_var)
+        
+        # Helper method to parse time string and update hour/minute
+        def parse_and_set_time(time_string):
+            """Parse time string (HH:MM or HH:MM:SS) and update hour/minute vars."""
+            try:
+                if time_string and ':' in time_string:
+                    parts = time_string.split(':')
+                    if len(parts) >= 2:
+                        self.hour_var.set(f"{int(parts[0]):02d}")
+                        self.minute_var.set(f"{int(parts[1]):02d}")
+                        return
+            except (ValueError, IndexError):
+                pass
+            # Default values if parsing fails
+            self.hour_var.set("12")
+            self.minute_var.set("00")
+        
+        # Store the helper as an instance method
+        self.parse_and_set_time = parse_and_set_time
 
         # Generl / Luisa
         special_frame = ttk.Frame(right_frame)
@@ -1321,7 +1373,8 @@ class ImageAnalyzer:
     def clear_fields(self):
         print("DEBUG: clear_fields invoked")
         self.location_var.set("")
-        self.time_var.set("")
+        self.hour_var.set("12")
+        self.minute_var.set("00")
         self.date_var.set("")
         self.species1_var.set("")
         self.count1_var.set("")
@@ -1431,7 +1484,7 @@ class ImageAnalyzer:
         if result.get('date'):
             self.date_var.set(result['date'])
         if result.get('time'):
-            self.time_var.set(result['time'])
+            self.parse_and_set_time(result['time'])
 
     def _update_special_checkboxes(self, animals_str):
         """Auto-select Generl/Luisa checkboxes based on analysis output."""
@@ -1495,7 +1548,8 @@ class ImageAnalyzer:
         sonstiges_options = ["", "Klares Wetter", "Neblig", "Regen", "Schnee sichtbar", "Gute Sicht"]
 
         self.location_var.set(random.choice(locations))
-        self.time_var.set(f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:00")
+        time_str = f"{random.randint(6,18):02d}:{random.randint(0,59):02d}:00"
+        self.parse_and_set_time(time_str)
         self.date_var.set(f"{random.randint(1,31):02d}.{random.randint(7,8):02d}.2025")
 
         num_species = random.choices([0, 1, 2, 3, 4], weights=[10, 40, 30, 15, 5])[0]  # Updated to allow up to 4
@@ -1561,14 +1615,14 @@ class ImageAnalyzer:
 
             # Populate other fields as before
             self.location_var.set(location)
-            self.time_var.set(time_str)
+            self.parse_and_set_time(time_str)
             self.date_var.set(date_str)
             self.parse_animals_to_species(animals)
         except Exception as e:
             print(f"Fehler bei KI-Analyse: {e}")
             animals, location, time_str, date_str = "", "", "", ""
             self.location_var.set(location)
-            self.time_var.set(time_str)
+            self.parse_and_set_time(time_str)
             self.date_var.set(date_str)
             self.parse_animals_to_species(animals)
 
