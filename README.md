@@ -1,286 +1,570 @@
-# Kamerafallen-Tools (Camera Trap Image Analysis Suite)
+# 🦅 Kamerafallen-Tools# Kamerafallen-Tools (Camera Trap Image Analysis Suite)
 
-A comprehensive Python toolkit for wildlife camera trap image management, featuring AI-powered analysis, automated organization, and intelligent workflow automation.
 
-## 🎯 Project Overview
 
-This suite provides a complete workflow for camera trap (Kamerafallen) image processing:
-1. **Extract images** from Outlook email attachments
-2. **AI-powered analysis** with GitHub Models API (GPT-4o)
+> **AI-powered wildlife camera trap image analysis and management suite**A comprehensive Python toolkit for wildlife camera trap image management, featuring AI-powered analysis, automated organization, and intelligent workflow automation.
+
+
+
+A comprehensive Python toolkit for camera trap image processing, featuring GPT-4o-powered analysis, automated organization, and intelligent workflow automation. Originally developed for Bearded Vulture (*Bartgeier*) monitoring in alpine environments.## 🎯 Project Overview
+
+
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)This suite provides a complete workflow for camera trap (Kamerafallen) image processing:
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)1. **Extract images** from Outlook email attachments
+
+[![GitHub Models API](https://img.shields.io/badge/AI-GitHub%20Models-purple)](https://github.com/marketplace/models)2. **AI-powered analysis** with GitHub Models API (GPT-4o)
+
 3. **Automated renaming** based on analysis results
-4. **Excel cataloging** with multi-sheet organization
 
-Originally developed for Bearded Vulture (Bartgeier) monitoring in alpine environments, but adaptable for any wildlife monitoring project.
+---4. **Excel cataloging** with multi-sheet organization
 
-## ✨ Key Features
 
-### 🤖 **AI-Powered Image Analysis**
-- Automatic species detection (Bartgeier, Steinadler, Gämse, Kolkrabe, etc.)
-- Location recognition (FP1, FP2, FP3, Nische)
-- Date/time extraction from image metadata
+
+## ✨ FeaturesOriginally developed for Bearded Vulture (Bartgeier) monitoring in alpine environments, but adaptable for any wildlife monitoring project.
+
+
+
+### 🤖 **AI-Powered Analysis**## ✨ Key Features
+
+- **Automatic species detection**: Bartgeier, Steinadler, Gämse, Kolkrabe, and more
+
+- **Location recognition**: Identifies camera trap positions (FP1, FP2, FP3, Nische)### 🤖 **AI-Powered Image Analysis**
+
+- **Metadata extraction**: Date, time, and behavioral observations- Automatic species detection (Bartgeier, Steinadler, Gämse, Kolkrabe, etc.)
+
+- **Interactive correction**: Manual review and correction interface with dropdown menus- Location recognition (FP1, FP2, FP3, Nische)
+
+- **Fullscreen viewer**: Zoom, pan, and examine images in detail- Date/time extraction from image metadata
+
 - Manual correction interface for AI results
 
-### ⚡ **Advanced Concurrency & Rate Limiting**
-- **Rolling buffer system**: Always 5 images pre-analyzed ahead
-- **Request staggering**: 0.8s delays prevent API rate limits
-- **Smart rate limit detection**: Auto-recovery from temporary limits
-- **Concurrent request optimization**: Respects GitHub Models 2-concurrent limit
-- Zero `UserConcurrentRequests` errors after optimization
+### ⚡ **Advanced Performance**
 
-### 📊 **Excel Integration**
-- Multi-sheet workbooks (separate tabs per location)
-- Immediate saves after each confirmation (no data loss)
-- Auto-incrementing IDs per location
+- **Rolling buffer system**: Pre-analyzes 5 images ahead for instant results### ⚡ **Advanced Concurrency & Rate Limiting**
+
+- **Smart rate limiting**: Auto-detection and recovery from API limits- **Rolling buffer system**: Always 5 images pre-analyzed ahead
+
+- **Request staggering**: 0.8s delays between calls prevent concurrent errors- **Request staggering**: 0.8s delays prevent API rate limits
+
+- **Zero rate limit failures**: Optimized for GitHub Models 2-concurrent request limit- **Smart rate limit detection**: Auto-recovery from temporary limits
+
+- **Concurrent request optimization**: Respects GitHub Models 2-concurrent limit
+
+### 📊 **Data Management**- Zero `UserConcurrentRequests` errors after optimization
+
+- **Excel integration**: Multi-sheet workbooks organized by location
+
+- **Immediate saves**: No data loss with instant Excel writes after each confirmation### 📊 **Excel Integration**
+
+- **Automated naming**: Structured filenames like `08.15.25-FP1-Bartgeier_2-Gämse.jpeg`- Multi-sheet workbooks (separate tabs per location)
+
+- **Backup system**: Originals preserved before any rename operation- Immediate saves after each confirmation (no data loss)
+
+- **Natural sorting**: Correct chronological order (1, 2, 3... 10, 11, 12)- Auto-incrementing IDs per location
+
 - Preserves existing data when appending
 
-### 🖼️ **Intelligent Image Management**
-- Natural sorting (handles fotofallen_2025_1, _2, ..., _10, _11 correctly)
-- Reverse order mode for newest-first processing
-- Automatic backup before renaming
+### 🖼️ **Image Processing**
+
+- **Email extraction**: Batch process Outlook `.msg` attachments### 🖼️ **Intelligent Image Management**
+
+- **Smart renaming**: Species, count, location, and date in filename- Natural sorting (handles fotofallen_2025_1, _2, ..., _10, _11 correctly)
+
+- **Image viewer**: Fullscreen mode with zoom and pan- Reverse order mode for newest-first processing
+
+- **Reverse order**: Process newest images first- Automatic backup before renaming
+
 - Structured naming: `MM.DD.YY-LOCATION-SPECIES_COUNT.jpeg`
 
+---
+
 ### 🔧 **Email Image Extraction**
-- Batch processing of Outlook `.msg` files
+
+## 🚀 Quick Start- Batch processing of Outlook `.msg` files
+
 - Zero-padded sequential naming (fotofallen_2025_0001.jpeg)
-- Progress tracking and error handling
 
-## 🚀 Quick Start
+### Prerequisites- Progress tracking and error handling
 
-### Prerequisites
+- **Python 3.8+**
+
+- **GitHub Personal Access Token** with Models permission ([Get one here](https://github.com/settings/tokens))## 🚀 Quick Start
+
+
+
+### Installation### Prerequisites
+
 - Python 3.8 or higher
-- GitHub Personal Access Token with **Models permission**
 
-### Installation
+```bash- GitHub Personal Access Token with **Models permission**
+
+# Clone the repository
+
+git clone https://github.com/JonathanGehret/extract_images_outlook.git### Installation
+
+cd extract_images_outlook
 
 1. **Clone this repository:**
-```bash
-git clone https://github.com/JonathanGehret/extract_images_outlook.git
-cd extract_images_outlook
+
+# Create virtual environment```bash
+
+python3 -m venv venvgit clone https://github.com/JonathanGehret/extract_images_outlook.git
+
+source venv/bin/activate  # On Windows: venv\Scripts\activatecd extract_images_outlook
+
 ```
 
-2. **Install dependencies:**
-```bash
+# Install dependencies
+
+pip install -r requirements.txt2. **Install dependencies:**
+
+``````bash
+
 pip install -r requirements.txt
-```
 
-3. **Configure GitHub Models API:**
+### Configuration```
+
+
+
+Create a `.env` file in the project root:3. **Configure GitHub Models API:**
+
    - Go to https://github.com/settings/tokens
-   - Create new Personal Access Token
-   - Enable **"Models"** permission
-   - Set environment variable:
-   ```bash
-   export GITHUB_MODELS_TOKEN="ghp_your_token_here"
+
+```env   - Create new Personal Access Token
+
+GITHUB_MODELS_TOKEN=ghp_your_token_here   - Enable **"Models"** permission
+
+ANALYZER_IMAGES_FOLDER=/path/to/your/images   - Set environment variable:
+
+ANALYZER_OUTPUT_EXCEL=/path/to/output.xlsx   ```bash
+
+```   export GITHUB_MODELS_TOKEN="ghp_your_token_here"
+
    ```
-   Or create a `.env` file:
-   ```
-   GITHUB_MODELS_TOKEN=ghp_your_token_here
-   ANALYZER_IMAGES_FOLDER=/path/to/images
+
+Or set environment variables:   Or create a `.env` file:
+
+```bash   ```
+
+export GITHUB_MODELS_TOKEN="ghp_your_token_here"   GITHUB_MODELS_TOKEN=ghp_your_token_here
+
+```   ANALYZER_IMAGES_FOLDER=/path/to/images
+
    ANALYZER_OUTPUT_EXCEL=/path/to/output.xlsx
-   ```
 
-### Basic Usage
+### Usage   ```
 
-**Option 1: Unified Launcher (Recommended)**
+
+
+**Unified Launcher (Recommended)**### Basic Usage
+
 ```bash
-python main_gui.py
+
+python main_gui.py**Option 1: Unified Launcher (Recommended)**
+
+``````bash
+
+Select which tool to launch from the menu.python main_gui.py
+
 ```
-Then select which tool to launch (Analyzer, Email Extractor, or Batch Renamer).
 
-**Option 2: Direct Tool Launch**
+**Direct Tool Launch**Then select which tool to launch (Analyzer, Email Extractor, or Batch Renamer).
+
 ```bash
-# AI Analyzer (primary tool)
-python github_models_analyzer.py
 
-# Email image extraction
+# AI Analyzer (primary tool)**Option 2: Direct Tool Launch**
+
+python github_models_analyzer.py```bash
+
+# AI Analyzer (primary tool)
+
+# Email image extractionpython github_models_analyzer.py
+
 python extract_img_email.py
 
-# Batch renaming from Excel
-python rename_images_from_excel.py
-```
+# Email image extraction
 
+# Batch renaming from Excelpython extract_img_email.py
+
+python rename_images_from_excel.py
+
+```# Batch renaming from Excel
+
+python rename_images_from_excel.py
+
+---```
+
+
+
+## 📖 Workflow
 
 ## 🏆 Key Technical Achievements
 
-### 1. **Concurrent Request Optimization**
+### 1️⃣ **Extract Images from Emails**
+
+Place Outlook `.msg` files in a folder, run the extractor, and get sequentially numbered images.### 1. **Concurrent Request Optimization**
+
 **Problem:** GitHub Models API limits to **2 simultaneous requests**. Initial implementation used 5 workers, causing `UserConcurrentRequests` errors.
 
-**Solution:**
-```python
-# Before: ThreadPoolExecutor(max_workers=5) ❌
+```
+
+Input:  email1.msg, email2.msg**Solution:**
+
+Output: fotofallen_2025_0001.jpeg, fotofallen_2025_0002.jpeg...```python
+
+```# Before: ThreadPoolExecutor(max_workers=5) ❌
+
 # After:  ThreadPoolExecutor(max_workers=2) ✅
-```
-**Result:** Zero concurrent limit violations, 100% successful request handling.
 
----
+### 2️⃣ **AI Analysis + Auto-Rename**```
 
-### 2. **Request Staggering System**
-**Problem:** Even with 2 workers, simultaneous request bursts triggered rate limits.
+The analyzer processes images with AI, lets you review/correct, saves to Excel, and renames automatically.**Result:** Zero concurrent limit violations, 100% successful request handling.
 
-**Solution:** Implemented 0.8-second minimum delay between API calls:
+
+
+```---
+
+Original: fotofallen_2025_0001.jpeg
+
+AI finds: 2 Bartgeier at FP1, 08.15.2025, 14:30### 2. **Request Staggering System**
+
+You confirm ✓**Problem:** Even with 2 workers, simultaneous request bursts triggered rate limits.
+
+Renamed:  08.15.25-FP1-Bartgeier_2.jpeg
+
+```**Solution:** Implemented 0.8-second minimum delay between API calls:
+
 ```python
-self.last_api_call_time = 0
-self.min_delay_between_calls = 0.8
 
-# Timeline:
-# T=0.0s: Start image 0
-# T=0.8s: Start image 1
+**Features per image:**self.last_api_call_time = 0
+
+- 🔍 **Fullscreen viewer** with zoom/panself.min_delay_between_calls = 0.8
+
+- 📝 **Dropdown menus** for quick corrections
+
+- 📅 **Date/time pickers** for easy selection# Timeline:
+
+- ✅ **Instant Excel save** after confirmation# T=0.0s: Start image 0
+
+- 🎯 **Auto-rename** with structured format# T=0.8s: Start image 1
+
 # T=1.6s: Start image 2
-# ...smooth, controlled flow
-```
+
+### 3️⃣ **Excel Output**# ...smooth, controlled flow
+
+Multi-sheet workbook with organized data:```
+
 **Result:** Predictable load distribution, eliminated burst-related failures.
 
----
+| Nr. | Standort | Datum | Uhrzeit | Art 1 | Anzahl 1 | Art 2 | Anzahl 2 | ... |
+
+|-----|----------|-------|---------|-------|----------|-------|----------|-----|---
+
+| 1   | FP1      | 08.15.25 | 14:30 | Bartgeier | 2 | Gämse | 1 | ... |
 
 ### 3. **Smart Rate Limit Detection & Recovery**
-**Problem:** Multiple rate limit types (concurrent, per-minute, per-day, token-based) required different handling.
 
-**Solution:** Comprehensive parsing and classification:
+---**Problem:** Multiple rate limit types (concurrent, per-minute, per-day, token-based) required different handling.
+
+
+
+## 🎨 UI Features**Solution:** Comprehensive parsing and classification:
+
 ```python
-def _parse_rate_limit_error(error_message):
-    # Detects 4 types:
-    # 1. Concurrent (2 per 0s) → 2s wait
-    # 2. Token limit (60k per 60s) → 60s wait
-    # 3. Per-minute (varies) → auto-resume
+
+### Dropdown Menusdef _parse_rate_limit_error(error_message):
+
+- **Standort**: FP1, FP2, FP3, Nische    # Detects 4 types:
+
+- **Species**: Bartgeier, Steinadler, Gämse, Kolkrabe, Fuchs, Steinbock, Murmeltier, etc.    # 1. Concurrent (2 per 0s) → 2s wait
+
+- **Aktivität**: Fliegen, Stehen, Fressen, Sitzen, Laufen, Beobachten    # 2. Token limit (60k per 60s) → 60s wait
+
+- **Interaktion**: Keine, Territorial, Spielerisch, Aggressiv, Neutral    # 3. Per-minute (varies) → auto-resume
+
     # 4. Per-day (50/day) → manual wait
-```
-**German User Feedback:**
-- `⚠️ Zu viele gleichzeitige Anfragen` (concurrent)
-- `⏱️ API-Limit: Bitte 60s warten` (per-minute)
+
+### Date & Time Pickers```
+
+- **📅 Calendar popup** for visual date selection**German User Feedback:**
+
+- **⏰ Hour/minute dropdowns** (5-minute intervals)- `⚠️ Zu viele gleichzeitige Anfragen` (concurrent)
+
+- **Auto-formatting** with `dd.mm.yyyy` and `HH:MM`- `⏱️ API-Limit: Bitte 60s warten` (per-minute)
+
 - `🚫 Tageslimit erreicht: Bitte 3h 24m warten` (per-day)
 
-**Result:** Auto-recovery from short limits, clear instructions for long limits.
+### Fullscreen Image Viewer
 
----
+- **Click image** or "🔍 Vollbild" button**Result:** Auto-recovery from short limits, clear instructions for long limits.
 
-### 4. **Rolling Buffer Architecture**
+- **Mouse wheel zoom** (10% - 1000%)
+
+- **Drag to pan** when zoomed---
+
+- **Fit-to-screen** button
+
+- **ESC to close**### 4. **Rolling Buffer Architecture**
+
 **Problem:** Users had to wait for each image analysis before proceeding.
 
+---
+
 **Solution:** Asynchronous pre-analysis with rolling queue:
-```python
+
+## 🏗️ Project Structure```python
+
 class AnalysisBuffer:
-    """
-    Always maintains 5 images ahead analyzed.
-    
-    User clicks "Next" → Instant display (already analyzed!)
-    Image completes → Automatically queue next image
-    """
-```
-**Result:** Seamless navigation, zero waiting for users.
 
----
+```    """
 
-### 5. **Natural Image Sorting**
-**Problem:** Default Python sorting: `fotofallen_2025_1, _10, _11, _2` (wrong order!)
+extract_images_outlook/    Always maintains 5 images ahead analyzed.
 
-**Solution:** Natural sort with regex-based numeric extraction:
-```python
-def natural_sort_key(filename):
-    return [int(part) if part.isdigit() else part.lower() 
-            for part in re.split(r'(\d+)', filename)]
-```
-**Result:** Correct chronological order: `_1, _2, ..., _10, _11`.
+├── main_gui.py                  # Unified launcher    
 
----
+├── github_models_analyzer.py    # AI analyzer (primary tool)    User clicks "Next" → Instant display (already analyzed!)
 
-### 6. **Zero-Data-Loss Excel Writes**
+├── github_models_api.py         # API communication layer    Image completes → Automatically queue next image
+
+├── github_models_io.py          # File I/O and Excel operations    """
+
+├── extract_img_email.py         # Email image extractor```
+
+├── rename_images_from_excel.py  # Batch renamer (fallback)**Result:** Seamless navigation, zero waiting for users.
+
+├── requirements.txt             # Python dependencies
+
+├── .env.example                 # Environment configuration template---
+
+├── docs/                        # Documentation
+
+│   ├── ARCHITECTURE.md          # Technical deep-dive### 5. **Natural Image Sorting**
+
+│   ├── BUILD_INSTRUCTIONS.md    # Build guide**Problem:** Default Python sorting: `fotofallen_2025_1, _10, _11, _2` (wrong order!)
+
+│   ├── ANLEITUNG.md            # German user manual
+
+│   └── DOCUMENTATION_SUMMARY.md # Doc overview**Solution:** Natural sort with regex-based numeric extraction:
+
+├── build/                       # Build scripts and specs```python
+
+│   ├── scripts/                 # Build automationdef natural_sort_key(filename):
+
+│   └── specs/                   # PyInstaller configurations    return [int(part) if part.isdigit() else part.lower() 
+
+└── .github/            for part in re.split(r'(\d+)', filename)]
+
+    └── instructions/            # AI development context```
+
+```**Result:** Correct chronological order: `_1, _2, ..., _10, _11`.
+
+
+
+------
+
+
+
+## 🔧 Technical Details### 6. **Zero-Data-Loss Excel Writes**
+
 **Problem:** Batch operations risk data loss on crash.
 
-**Solution:** Immediate Excel save after each confirmation:
-```python
-# User clicks "Bestätigen"
-→ Save to Excel immediately
-→ Enable rename button
-→ Update Excel after rename
+### API Integration
+
+- **GitHub Models API**: GPT-4o and gpt-4o-mini**Solution:** Immediate Excel save after each confirmation:
+
+- **Rate Limits**: ```python
+
+  - Concurrent: 2 simultaneous requests (strictly enforced)# User clicks "Bestätigen"
+
+  - Per-minute: Varies by model→ Save to Excel immediately
+
+  - Per-day: gpt-4o = 50, gpt-4o-mini = 8→ Enable rename button
+
+- **Auto-recovery**: Smart detection and retry logic→ Update Excel after rename
+
 ```
-**Result:** No data loss even during crashes or power failures.
 
----
+### Performance Optimizations**Result:** No data loss even during crashes or power failures.
 
-### 7. **Cross-Platform Executable Builds**
+- **ThreadPoolExecutor**: 2 workers (concurrent limit)
+
+- **Request staggering**: 0.8s minimum between API calls---
+
+- **Rolling buffer**: 5-image lookahead for seamless navigation
+
+- **Natural sorting**: Correct filename ordering (1, 2... 10, 11, 12)### 7. **Cross-Platform Executable Builds**
+
 **Problem:** Users without Python need standalone executables.
 
-**Solution:** PyInstaller with optimized bundles:
-- Size: ~130MB (includes Python runtime + all dependencies)
-- Platforms: Linux (`ELF`) + Windows (`PE32+`)
-- Zero external dependencies required
+### Data Format
 
-**Result:** True standalone deployment, no Python installation needed.
+**Image Naming Convention:****Solution:** PyInstaller with optimized bundles:
+
+```- Size: ~130MB (includes Python runtime + all dependencies)
+
+MM.DD.YY-LOCATION-SPECIES1_COUNT-SPECIES2.jpeg- Platforms: Linux (`ELF`) + Windows (`PE32+`)
+
+```- Zero external dependencies required
+
+
+
+**Examples:****Result:** True standalone deployment, no Python installation needed.
+
+- `08.15.25-FP1-Bartgeier_2.jpeg`
+
+- `07.22.25-FP2-Generl-Luisa.jpeg` (named individuals)---
+
+- `08.01.25-FP3-Gämse_3-Kolkrabe.jpeg` (multiple species)
+
+- `09.10.25-Nische-Unbestimmt_Bartgeier.jpeg` (unidentified individual)## 📊 Performance Metrics
+
+
+
+---| Metric | Before Optimization | After Optimization |
+
+|--------|-------------------|-------------------|
+
+## 📚 Documentation| Concurrent violations | ~60% of requests | **0%** ✅ |
+
+| Buffer lag | Wait 3-5s per image | **Instant** ✅ |
+
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - Technical deep-dive and implementation details| Rate limit crashes | Frequent | **Auto-recovers** ✅ |
+
+- **[Build Instructions](docs/BUILD_INSTRUCTIONS.md)** - Create standalone executables| Data loss on crash | Possible | **Zero** ✅ |
+
+- **[Anleitung (German)](docs/ANLEITUNG.md)** - German user manual| Sorting errors | 15-20% misorders | **0%** ✅ |
+
+- **[Documentation Summary](docs/DOCUMENTATION_SUMMARY.md)** - Doc navigation
 
 ---
-
-## 📊 Performance Metrics
-
-| Metric | Before Optimization | After Optimization |
-|--------|-------------------|-------------------|
-| Concurrent violations | ~60% of requests | **0%** ✅ |
-| Buffer lag | Wait 3-5s per image | **Instant** ✅ |
-| Rate limit crashes | Frequent | **Auto-recovers** ✅ |
-| Data loss on crash | Possible | **Zero** ✅ |
-| Sorting errors | 15-20% misorders | **0%** ✅ |
 
 ---
 
 ## 📁 Repository Structure
 
+## 🐛 Debugging
+
 ```
-extract_images_outlook/
+
+**Debug Log Location:** `~/.kamerafallen-tools/analyzer_debug.log`extract_images_outlook/
+
 ├── main_gui.py                      # Unified launcher GUI (entry point)
-├── github_models_analyzer.py        # AI analyzer (2,170 lines - primary tool)
+
+**Access from GUI:** Click "Debug-Log öffnen" button in analyzer├── github_models_analyzer.py        # AI analyzer (2,170 lines - primary tool)
+
 │   ├── AnalysisBuffer class         # Async analysis with rolling queue
-│   └── ImageAnalyzer class          # Tkinter GUI + user interaction
-├── github_models_api.py             # GitHub Models API client (348 lines)
-├── github_models_io.py              # Image I/O + Excel operations (473 lines)
-├── extract_img_email.py             # Outlook .msg attachment extractor
-├── rename_images_from_excel.py     # Batch renamer (fallback tool)
+
+**Common Issues:**│   └── ImageAnalyzer class          # Tkinter GUI + user interaction
+
+- **No GitHub token**: Check `.env` file or environment variables├── github_models_api.py             # GitHub Models API client (348 lines)
+
+- **API errors**: Verify token has Models permission├── github_models_io.py              # Image I/O + Excel operations (473 lines)
+
+- **Rate limits**: Tool auto-recovers, just wait for countdown├── extract_img_email.py             # Outlook .msg attachment extractor
+
+- **Excel locked**: Close Excel before running analyzer├── rename_images_from_excel.py     # Batch renamer (fallback tool)
+
 ├── build_final.py                   # PyInstaller build script (Linux)
-├── build_windows_release.bat        # PyInstaller build script (Windows)
+
+---├── build_windows_release.bat        # PyInstaller build script (Windows)
+
 ├── requirements.txt                 # Python dependencies
-├── README.md                        # This file
+
+## 🤝 Contributing├── README.md                        # This file
+
 ├── ARCHITECTURE.md                  # Technical architecture documentation
-├── ANLEITUNG.md                     # German user guide
+
+Contributions welcome! This project is actively maintained.├── ANLEITUNG.md                     # German user guide
+
 ├── BUILD_INSTRUCTIONS.md            # Build process documentation
-└── .github/instructions/
-    └── kamerafallen.instructions.md # Developer instructions
-```
 
-## 🔧 Tool Descriptions
+**Areas for contribution:**└── .github/instructions/
 
-### **1. GitHub Models Analyzer** (PRIMARY TOOL)
+- Additional species detection    └── kamerafallen.instructions.md # Developer instructions
+
+- UI/UX improvements```
+
+- Documentation translations
+
+- Bug reports and fixes## 🔧 Tool Descriptions
+
+
+
+---### **1. GitHub Models Analyzer** (PRIMARY TOOL)
+
 **File:** `github_models_analyzer.py`  
-**Purpose:** AI-powered image analysis with complete workflow
 
-**Workflow:**
+## 📝 License**Purpose:** AI-powered image analysis with complete workflow
+
+
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.**Workflow:**
+
 1. AI analyzes image → Detects animals, location, date, time
-2. User reviews/corrects analysis
+
+---2. User reviews/corrects analysis
+
 3. User clicks "Bestätigen" → Saves to Excel immediately
-4. User clicks "Bild umbenennen" → **Auto-renames** with backup
+
+## 🎯 Use Cases4. User clicks "Bild umbenennen" → **Auto-renames** with backup
+
 5. Move to next image → Repeat
 
-**Output:**
-- Multi-sheet Excel file (FP1, FP2, FP3, Nische tabs)
-- Renamed images: `MM.DD.YY-LOCATION-SPECIES_COUNT.jpeg`
-- Backup of originals in `backup_originals/` folder
+- **Wildlife monitoring**: Camera trap image analysis for research
 
-**Key Features:**
-- Rolling buffer (5 images always pre-analyzed)
-- Rate limit auto-recovery
-- Test mode (no API needed)
-- Debug logging to `~/.kamerafallen-tools/analyzer_debug.log`
+- **Conservation projects**: Track endangered species populations**Output:**
+
+- **Alpine ecology**: Bartgeier and other alpine species- Multi-sheet Excel file (FP1, FP2, FP3, Nische tabs)
+
+- **Data cataloging**: Organize large image collections efficiently- Renamed images: `MM.DD.YY-LOCATION-SPECIES_COUNT.jpeg`
+
+- Backup of originals in `backup_originals/` folder
 
 ---
 
+**Key Features:**
+
+## 💡 Credits- Rolling buffer (5 images always pre-analyzed)
+
+- Rate limit auto-recovery
+
+- **Developed by**: Jonathan Gehret (with GitHub Copilot)- Test mode (no API needed)
+
+- **AI**: GitHub Models API (GPT-4o)- Debug logging to `~/.kamerafallen-tools/analyzer_debug.log`
+
+- **UI Framework**: Tkinter with tkcalendar
+
+- **Image Processing**: Pillow (PIL)---
+
+- **Data Management**: pandas, openpyxl
+
 ### **2. Email Image Extractor**
-**File:** `extract_img_email.py`  
+
+---**File:** `extract_img_email.py`  
+
 **Purpose:** Extract images from Outlook `.msg` files
 
+## 📧 Contact
+
 **Usage:**
-```python
-input_folder = "/path/to/msg/files"
+
+**Jonathan Gehret**```python
+
+- GitHub: [@JonathanGehret](https://github.com/JonathanGehret)input_folder = "/path/to/msg/files"
+
 output_folder = "/path/to/extracted/images"
-```
+
+---```
+
 Run: `python extract_img_email.py`
 
-**Output:** `fotofallen_2025_0001.jpeg, _0002.jpeg, ...`
+<p align="center">
+
+  <sub>Built with ❤️ for wildlife conservation and research</sub>**Output:** `fotofallen_2025_0001.jpeg, _0002.jpeg, ...`
+
+</p>
 
 ---
 

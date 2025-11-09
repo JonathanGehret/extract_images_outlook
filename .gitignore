@@ -143,24 +143,39 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Project specific
+# Project specific - Data files
 *.msg
 2025_extracted_images/
+2025_extracted_images_original/
 *.jpeg
 *.jpg
-*.xlsx
-*.xlsx#
-*.xls
+*.png
 extracted_images/
 output/
 input/
 test_messages/
+
+# Project specific - Excel files (test/output data)
+*.xlsx
+*.xlsx#
+*.xls
+!docs/*.xlsx  # Allow example files in docs if needed
+
+# Project specific - Archive folder
+archive/
 
 # Debug and log files
 debug_kamerafallen.txt
 analyzer_debug.log
 *.log
 *_debug.txt
+analyzer_debug*.txt
+
+# Build artifacts
+*.zip
+dist/
+build/KamerafallenTools*/
+*.ico
 
 # IDE files
 .vscode/
